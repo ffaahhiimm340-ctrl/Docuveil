@@ -1,0 +1,135 @@
+﻿Prior-Art Check & Related Work — Personal Document Intelligence System
+Oct 12, 2026 · @Omkar
+Verdict
+All four claims survive, but only in narrowed form. Every underlying mechanism already exists somewhere; what is new is the setting (an individual's own documents, owner-held baseline, no cooperating issuer, no central server) and the combination.
+Claim
+Prior art found?
+Survives?
+How it must be worded
+1. Content-aware tamper detection
+Yes: OCR-based integrity codes (patents), fuzzy hashes for scanned documents (FuzzyDoc), pixel-level tamper localization (DocTamper)
+Yes, narrowed
+Reference-based, field-level semantic change detection on the owner's own documents, with no hash embedded at creation and no issuer involvement
+2. Zero-knowledge keyed-fingerprint sync
+Yes: convergence secrets (Tahoe-LAFS), HMAC file identifiers (Bifrost, sync patents)
+Only as a design choice
+Do not claim the crypto. Claim its use for cross-device tamper-alert coordination
+3. Availability-aware alerting
+Yes: asset-criticality alert triage (Elastic), data-criticality restore prioritization (patents)
+Yes, narrowed
+Per-document availability computed automatically for one person, driving alert urgency
+4. Benchmark dataset
+Yes: SIDTD, FantasyID (includes Indian IDs), DocTamper
+Yes, narrowed
+Paired original/modified versions with field-level labels and a benign-transformation class. Do not claim "no Indian dataset exists"
+The paper's strongest contribution is Claim 1. Claims 2 and 3 become supporting design elements, and Claim 4 is the evaluation resource.
+Claim 1: Content-aware tamper detection
+The idea of hashing a document's content instead of its bytes is about 15 years old, so this claim must be narrowed. Three families of prior work exist.
+A. Integrity codes over substantive content (patents). A US patent family on document integrity verification hashes only the printable characters of a document so the code can be recreated from a printed or OCR'd copy, explicitly to cut false alarms from formatting loss (US 7676501; also US 10255460, US 11550959). A related patent hashes individual areas of a document into an "integrity map" printed on the page, giving area-level localization (US 9922278).
+B. Fuzzy and perceptual hashes for scanned documents. The FuzzyDoc project (Tkachenko, LIRIS-CNRS) builds signatures that survive print-scan noise yet detect small edits (project page). Perceptual hashing for document integrity is also surveyed in Challenges and Solutions in Multimedia Document Authentication.
+C. Forensic tamper localization from a single image. DocTamper (Qu et al., CVPR 2023) is a 170,000-image benchmark for localizing tampered text regions without any reference copy (paper). OCR graph features have also been used to detect manipulated business documents (James et al.).
+How ours differs
+Aspect
+Prior art
+Ours
+Who creates the reference
+Document author/issuer embeds a code at creation (A)
+The owner's app records a baseline on first index, no issuer cooperation
+Reference needed?
+C needs none, so it guesses from pixels
+Compares against the owner's earlier version
+What is reported
+Changed / unchanged, or a changed pixel region
+Which named field changed (expiry date, name, amount), old vs new value
+Benign vs tamper
+Not modelled as a separate class
+Explicit class: re-save, re-scan, compression, rename
+Setting
+Business, legal, KYC onboarding
+One person's own documents across their own devices
+Risk to watch: US 9922278 already does area-level localization. Our difference must be stated as semantic field labels with old/new values, not just where the change is.
+Claim 2: Zero-knowledge keyed-fingerprint sync
+The cryptography is standard, so it cannot be a contribution on its own. The problem it solves is well documented: plain content hashes allow a "confirmation-of-a-file" attack, where anyone holding a copy of a file can check whether you have it (Convergent encryption). Known fixes:
+Tahoe-LAFS mixes a per-user "convergence secret" into file identifiers so outsiders cannot confirm files (docs).
+DupLESS uses a key server to resist brute-force guessing of hashes (Bellare et al.).
+Bifrost uses an HMAC of the file under a client key as the file identifier (arXiv 2201.10839).
+Sync patents name files by an HMAC of their path on an untrusted sync server (US 9390281).
+How to use it in the paper: present HMAC-keyed fingerprints as a design choice justified by the confirmation-of-file attack, citing the works above. What is ours is applying it to cross-device tamper-alert coordination (devices compare keyed field-level fingerprints; the server only relays), rather than to deduplication or storage. Include a short threat-model paragraph showing what the server can and cannot learn.
+Claim 3: Availability-aware alerting
+Prioritizing alerts by how critical an asset is already exists in enterprise security, so the novelty is only the personal, automatic, per-document version.
+Elastic Security lets admins assign an asset-criticality level that feeds entity risk scores and alert triage (docs).
+Ransomware-recovery patents score data criticality to decide restore order (US 11675672).
+Your earlier verification doc already found backup-strategy scoring and availability-level patents.
+How ours differs: in all of these, criticality is set by an administrator or used after an incident to order recovery. Ours computes availability automatically per document (copies on distinct devices/clouds, backup recency, integrity) for a single person, and uses it at alert time to decide urgency (immediate / batched / low). Keep it as a supporting element evaluated with the user-ranking study, not as a headline contribution.
+Claim 4: Benchmark dataset
+Synthetic forgery datasets exist, including some with Indian IDs, so the gap is the task, not the country. Existing datasets are built for judging one image on its own; none provide paired versions of the same personal document with field-level change labels.
+Dataset
+What it contains
+Fits our task?
+SIDTD (2024)
+Synthetic ID and travel documents from 10 European countries, crop-replace and inpainting forgeries
+No: IDs only, single-image, no benign class
+FantasyID (2025)
+Manipulated fantasy ID cards, includes Indian-style IDs
+No: IDs only, single-image
+DocTamper (2023)
+170,000 tampered document images with pixel masks
+No: no original/modified pairs, no field labels
+MIDV family (2019–2023)
+Mock-up ID cards, photos and video
+No: recognition-focused
+Our gap, stated precisely: a dataset of personal documents beyond IDs (marksheets, insurance policies, certificates, rent agreements, PAN-style cards), where each original has (a) benign variants (re-save, re-scan, compression, rename, metadata edit) and (b) tampered variants with the changed field and old/new values labelled. A recent survey confirms public ID datasets remain limited because real IDs cannot be released (survey), which supports building synthetic data.
+Basic security layer: cite, don't claim
+Decoy-file ransomware detection is well established, which confirms the decision to keep it as a basic feature.
+Moore (IEEE CCC 2016) monitored a honeypot folder for ransomware and noted that tripwire files only help if malware actually touches them (record).
+R-Locker deploys FIFO-style honeyfiles that block ransomware when read, and a 2025 follow-up extends it to multi-stage detection (R-Locker; 2025 paper).
+Hidden decoy files as ransomware tripwires are patented (US 10938854).
+A DIMVA 2019 paper shows ransomware can be built to avoid decoys, so state this as a limitation (paper).
+For malicious-document scanning, cite the papers already in your literature table (Singh et al. 2020 survey; Yerima et al. 2022; UFADF 2023) and describe your module as integration of YARA rules, oletools and an existing PDF classifier.
+Confirmed novelty statement
+Use this wording in the Introduction:
+Existing document-integrity methods either require the issuer to embed a verification code at creation, or judge a single image without any reference. Neither fits an individual who simply holds copies of their own documents across several devices. We propose an owner-side, reference-based integrity method that records a semantic fingerprint of each important document on first index and later reports which named field changed and how, while classifying benign transformations separately. Fingerprints are keyed so that a relay server coordinating cross-device alerts learns nothing about the documents, and alert urgency is set by each document's computed availability.
+Contributions (final list)
+An owner-side semantic fingerprint and comparison method that distinguishes benign transformations from tampering and reports the changed field with old and new values.
+A cross-device protocol that coordinates tamper alerts using keyed fingerprints, with a threat model showing what the relay server cannot learn.
+An availability-aware alert policy, validated against user rankings.
+A synthetic benchmark of paired personal-document versions with field-level labels, released for reuse.
+Do not claim: content hashing, perceptual hashing, HMAC identifiers, honeyfile ransomware detection, criticality-based alert triage, or "the first Indian document dataset". Cite each instead.
+Related Work (draft for the paper)
+Numbers in brackets match the reference list below. Rewrite in your own voice before submission.
+Personal information management. Semantic desktop systems such as Gnowsis and NEPOMUK integrated personal files by meaning but were confined to one machine [1, 2]. Reviews of file-management research show people still struggle to keep track of documents spread across devices and locations [3, 4]. None of these systems verify whether a document's content is still intact.
+Document integrity verification. Patented integrity-verification schemes hash only a document's substantive content so that it can be recreated from printed or OCR'd copies [5], and integrity maps extend this to individual regions of a page [6]. Fuzzy hashes and perceptual hashes tolerate print-scan noise while detecting small edits [7, 8]. These approaches assume the issuer embeds a verification code when the document is created, which an individual holding received documents cannot do.
+Document tamper detection and localization. Deep forensic models localize tampered text regions from a single image, benchmarked mainly on DocTamper [9], and OCR-graph features have been used to flag manipulated business documents [10]. Synthetic ID datasets such as SIDTD and FantasyID support forgery detection where real IDs cannot be shared [11, 12]. These methods work without a reference copy, and report changed pixels rather than which field changed.
+Privacy-preserving file identifiers. Plain content hashes expose users to confirmation-of-file attacks; convergence secrets, server-aided keys and HMAC-based identifiers mitigate this in storage and deduplication systems [13, 14, 15]. They have not been applied to coordinating tamper alerts across a person's own devices.
+Malicious documents and ransomware. Static and ML-based detectors identify malicious PDF and Office documents [16, 17, 18]. Ransomware defenses include behavioral monitoring [19, 20] and decoy files [21, 22], though decoy-aware ransomware remains possible [23]. Our system integrates these as a baseline layer and does not claim them.
+Criticality-based prioritization. Enterprise tools weight alerts by administrator-assigned asset criticality [24], and recovery systems prioritize restores by data criticality [25]. Both depend on administrators and act at organization scale.
+Gap. No prior work offers owner-side, reference-based, field-level integrity verification for an individual's own documents, coordinated across their devices without revealing content to a server, with alert urgency set by each document's availability.
+References and verification notes
+Items marked verify were found through search listings only; open the publisher page and confirm authors, year and DOI before submitting. Items 1–4 and 16–20 come from your existing literature table.
+Sauermann, L. The Semantic Desktop. I-KNOW 2005.
+NEPOMUK consortium, Social Semantic Desktop, 2007–2011.
+Dinneen, J. D., Julien, C. A. The ubiquitous digital file. JASIST 71(1), 2020.
+Ali, I., Warraich, N. F., Butt, K. Systematic review of factors affecting PIM. J. Librarianship & Information Science. verify year
+Document integrity verification, US 7676501; related US 10255460, US 11550959. verify assignee
+Verifying integrity of physical documents, US 9922278. verify assignee
+Tkachenko, I. A Two-Step Method for Ensuring Printed Document Integrity using Crossing Number Distances. IEEE WIFS 2022. FuzzyDoc
+Challenges and Solutions in Multimedia Document Authentication. IGI Global. chapter verify authors
+Qu, C. et al. Towards Robust Tampered Text Detection in Document Image: New Dataset and New Solution. CVPR 2023, pp. 5937–5946. paper
+James, H., Gupta, O., Raviv, D. OCR Graph Features for Manipulation Detection in Documents. arXiv 2009.05158
+Boned, C. et al. Synthetic dataset of ID and Travel Documents (SIDTD). Scientific Data, 2024. arXiv 2401.01858
+FantasyID: A dataset for detecting digital manipulations of ID-documents. arXiv 2507.20808 verify authors
+Tahoe-LAFS. The Convergence Secret. docs
+Bellare, M., Keelveedhi, S., Ristenpart, T. DupLESS: Server-Aided Encryption for Deduplicated Storage. USENIX Security 2013. page
+Bifrost: Secure, Scalable and Efficient File Sharing System Using Dual Deduplication. arXiv 2201.10839 verify authors
+Singh, P., Tapaswi, S., Gupta, S. Malware detection in PDF and office documents: a survey. Information Security Journal, 29(3), 2020.
+Yerima, S. Y. et al. Malicious PDF detection based on ML with enhanced feature set. IEEE CICN 2022.
+UFADF: Unified Feature Analysis and Detection Framework for Malicious Office Documents. IEEE TrustCom 2023. verify authors
+Oz, H. et al. A Survey on Ransomware. ACM Computing Surveys 54(11s), 2022.
+Mehnaz, S., Mudgerikar, A., Bertino, E. RWGuard. RAID 2018.
+Moore, C. Detecting Ransomware with Honeypot Techniques. IEEE CCC 2016. record
+Gómez Hernández, J. A., Álvarez González, L., García Teodoro, P. R-Locker. record; 2025 follow-up in Mathematics (MDPI) 13(12):1933. record
+Decoy-aware ransomware analysis, DIMVA 2019. paper verify authors
+Elastic. Asset criticality. docs (vendor documentation)
+Automation and optimization of data recovery after a ransomware attack, US 11675672. verify assignee
+Also add the backup-scoring and backup-fingerprinting patents from your earlier novelty verification doc once you have their patent numbers.
+

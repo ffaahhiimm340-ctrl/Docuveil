@@ -1,0 +1,287 @@
+﻿Final Research Plan — Personal Document Integrity & Consistency
+Oct 12, 2026 · @Omkar
+Summary
+We build a Flutter app (Windows + Android) that keeps a person's important documents organized and safe, and we research one engine behind it: owner-side, field-level checking of personal documents. The same engine answers two questions nobody currently answers for an ordinary person: has this document been changed, and exactly how? and do my documents agree with each other before I apply for something?
+Final contribution list
+Field-level tamper detection (main). Automatically reports which named field of a document changed, with old and new values, and separates harmless changes (re-save, re-scan, compression) from real tampering, across the owner's own devices.
+Owner-side cross-document consistency audit (new). Before an application, checks that name, date of birth and other fields agree across the person's Aadhaar, PAN, marksheets and passport, using Indian naming rules (initials, name order, post-marriage surnames), and tells them which document to fix.
+Private cross-device sync. Keyed fingerprints so the relay server cannot read documents or tell which document an alert is about.
+Availability-aware alerts. A per-document score (copies, backup, integrity) sets alert urgency.
+Benchmark dataset. Synthetic Indian personal documents with labelled tampered versions, harmless versions and cross-document mismatch cases.
+Contributions 1 and 2 carry the paper. 3 to 5 support them. Malware scanning, ransomware guard, expiry reminders and search are app features we build but do not claim.
+What we build
+One app, two layers. The basic layer uses existing tools and is cited, not claimed. The research layer is what the paper is about.
+Layer
+Feature
+How
+Research
+Field-level tamper alerts
+Baseline fields on first index; compare later versions field by field
+Research
+Consistency audit before applying
+Compare fields across Aadhaar, PAN, marksheets, passport with Indian naming rules
+Research
+Private cross-device alerts
+HMAC-keyed fingerprints relayed by a thin FastAPI server
+Research
+Alert urgency
+Document Availability Score (copies, backup, integrity)
+Basic
+Search and copy matching
+On-device text search; find identical or newer copies
+Basic
+Expiry and renewal reminders
+Dates from extracted fields
+Basic
+Hidden-script scan and quarantine
+YARA rules, oletools, PDF parsers on incoming files
+Basic
+Ransomware guard (Windows)
+Decoy files plus mass-change detection
+Basic
+Sensitive-data warnings
+Extracted ID numbers in shared folders
+Basic
+Secure storage
+Keystore-backed encrypted SQLite
+Stack: Flutter, SQLite, Google ML Kit / Tesseract OCR, a PDF text library, FastAPI + PostgreSQL (metadata only), HMAC-SHA256.
+Scope limits: 5 document types (Aadhaar-style ID, PAN-style card, marksheet, insurance policy, certificate), 2 platforms, synthetic data only.
+Contribution A: Field-level tamper detection
+Comparing a document against a stored original already exists, so our claim is narrower: automatic, owner-side, field-named change reports with a harmless/tamper verdict, across a person's devices.
+Closest prior work
+What it does
+What it cannot do that we do
+Yriarte, Puteaux, Tkachenko, IEEE WIFS 2022 [7]
+Stores image features of an original as a template; flags changed regions in a scanned copy
+Name the changed field with old/new values; work across devices
+Adobe Acrobat Compare Files [27]
+Shows text and image differences between two PDFs the user picks
+Run automatically from a baseline; name fields; say harmless vs tamper
+Integrity-code patents (Wilson; Lenovo) [5, 6]
+Issuer prints a hash or integrity map on the document
+Protect documents that carry no issuer code
+DigiLocker [26]
+Verifies documents pushed by registered issuers
+Cover documents users upload themselves
+DocTamper benchmark and models [9]
+Localize suspicious pixels in one image, no original
+Compare with the owner's real original
+Plain SHA-256
+Detects any byte change
+Ignore harmless re-saves and re-scans; explain the change
+Pipeline: SHA-256 trigger → perceptual hash and text comparison decide if the change is harmless → field comparison names what changed → keyed sync alerts other devices → availability score sets urgency.
+Example output: Marksheet on Google Drive: Semester 2 CGPA changed from 8.74 to 9.40. Your laptop copy is the original.
+Contribution B: Owner-side cross-document consistency audit
+The re-check found that comparing fields across a person's identity documents has been published, so this contribution must be worded carefully. What remains open is doing it for the owner, before they apply, with Indian naming rules and fix-it advice, instead of producing a pass/fail trust score for a verifier.
+The problem is real and common. Name, gender or date-of-birth mismatches make PAN–Aadhaar linking fail, and the link is required to file income tax returns (Paisabazaar). Causes include a father's initial on PAN but the full name on Aadhaar, apostrophes in surnames, and full stops between initials (Business Insider India). NTA advised JEE Main 2025 applicants to make their Aadhaar name match their application (Vedantu), and initials placed differently on certificates and Aadhaar can complicate passport applications (Careers360).
+Prior work (re-checked 12 Oct 2026)
+What it does
+Gap we fill
+Waris et al., IJFMR 8(4), 2026 [28]
+Verifier-side framework: OCR + NER on Aadhaar, PAN, passport, DL; Levenshtein/Jaro-Winkler similarity; trust score → verified / review / rejected
+No owner-side use, no Indian-specific name rules, no advice on which document to fix
+Dangalla et al., IEEE/ACIS ICIS 2018 [29]
+Correlation score across a person's identity documents in structured digital format, for authorities
+Structured data only, no scans, authority-side
+KYC platforms (Sumsub, Face++ blog) [30, 31]
+Cross-check name, DOB, address across submitted documents during onboarding
+Business-side, after submission
+Indian name-match APIs (HyperVerge, Cashfree) [32, 33]
+Match two Indian names, handling initials, order, spelling
+Pairwise API for companies; no document audit for citizens
+Name-correction services (DocuPro) [34]
+Human service that fixes passport/Aadhaar/PAN names
+Manual, paid, no automated detection
+What we add
+Runs on the owner's device over all their documents at once, before any application.
+Classifies each difference: equivalent (initial expanded, order swapped, case/punctuation), likely problem (spelling variant, maiden vs married surname), blocking (different DOB or gender).
+Explains the fix: which document to update, in which order, for which purpose (PAN–Aadhaar link, passport, exam).
+Caution on [28]: it is a low-tier journal and some of its references look wrong (it credits the OCR-graph-features paper to authors other than James, Gupta and Raviv). Cite it as related work, and do not rely on its numbers.
+Supporting contributions
+Contribution
+Prior art to cite
+Our use
+Private cross-device sync
+Confirmation-of-file attack; Tahoe-LAFS convergence secret [13]; DupLESS [14]; Bifrost HMAC identifiers [15]
+Keyed fingerprints for tamper-alert coordination. The server cannot read content or identify the document, but still sees timing and message counts
+Availability-aware alerts
+Elastic asset criticality [24]; ransomware-recovery prioritization patent [25]; backup-scoring patents from the earlier novelty check
+Score computed automatically per document for one person, used at alert time
+Benchmark dataset
+SIDTD [11], FantasyID (includes a Hindi template) [12], DocTamper [9]
+Paired original/changed versions with field labels, a harmless-change class, and cross-document mismatch sets for the same synthetic person
+The dataset must be fully synthetic. Never use real Aadhaar or PAN copies.
+Existing apps and tools (cite, do not claim)
+Expiry tracking, secure vaults and gap checks already exist commercially, so they cannot be our novelty.
+App / tool
+What it already does
+Missing vs our research
+Ask Aydo (India)
+WhatsApp-first: files documents, tracks renewals, flags gaps like a policy with no nominee
+No tamper detection; no cross-document mismatch audit found
+Kinship Vault
+Encrypted vault, on-device OCR, expiry alerts, chained activity log
+No field-level change reports; no consistency audit
+DigiLocker
+Stores and verifies issuer-pushed documents
+Uploaded documents unverified; users report mismatch errors (Counterview)
+Adobe Acrobat Compare
+Manual two-file comparison
+Not automatic, not field-aware
+DocuPro
+Paid human service to fix name mismatches
+No automated detection
+None of these combine automatic field-level tamper reports with an owner-side consistency audit, based on what we could find.
+Evaluation plan
+Every result is compared against a simple baseline so the improvement is measurable.
+Experiment
+Metric
+Baseline
+Tamper detection
+Precision, recall, F1 on tampered vs original pairs
+Plain SHA-256; plain text diff
+Harmless changes
+False-alarm rate on re-saves, re-exports, re-scans
+Plain SHA-256 (report its measured rate, do not assume 100%)
+Field naming
+% of tamper cases where the exact field and old/new values are correct
+None exists; report as a new measure
+Consistency audit
+Precision/recall for flagging real mismatches; accuracy of the equivalent / problem / blocking label
+Generic Jaro-Winkler threshold (the approach in [28])
+Indian name cases
+Accuracy per case: initials, order swap, punctuation, maiden/married, transliteration
+Same generic baseline
+Cross-device sync
+Time from edit on device B to alert on device A
+Report latency
+Privacy
+Show the server cannot link fingerprints to known files
+Plain-hash sync
+Availability score
+Spearman correlation with rankings from 10–15 users
+Random ranking
+Dataset size: about 150–200 base documents for tamper tests, plus about 50 synthetic people with 4–5 documents each for consistency tests.
+Timeline and limitations
+About 15 weeks.
+Weeks 1–2: final prior-art check with your guide on Google Scholar; fix scope; start the synthetic dataset.
+Weeks 3–6: field extraction, fingerprints, local tamper checks.
+Weeks 7–8: consistency audit with Indian name rules.
+Weeks 9–10: keyed sync, availability score, basic security layer.
+Weeks 11–12: experiments and the user ranking study.
+Weeks 13–15: write the paper, verify every reference, submit.
+Limitations to state in the paper
+Only 5 document types and 2 platforms; Android sandboxing limits what can be monitored.
+Synthetic data only; real-world OCR noise may be worse.
+Name rules cover common Indian patterns, not every regional convention or script.
+The relay server still sees timing and message counts.
+Decoy-based ransomware detection can be bypassed by decoy-aware ransomware [23].
+Do not claim: content hashing, perceptual hashing, template comparison, two-file comparison, cross-document identity matching in general, HMAC identifiers, decoy files, criticality-based alerts, or "the first Indian document dataset". Say "to our knowledge" rather than "first".
+Prior-art check, round 2 (12 Oct 2026)
+All five contributions survive, but round 2 found three patents closer than anything in round 1, so the wording below is tighter. Searches covered Google Patents and IEEE Xplore by domain, plus arXiv and the general web. Google Scholar blocks automated queries, so your guide should run one manual Scholar pass before submission.
+Our claim
+Closest prior art found in round 2
+What it does
+Our difference
+A. Field-level tamper detection
+Adobe, US 7735144 B2 (2010) [35]
+Author signs a PDF with rules on which fields may change; a reader detects disallowed changes between the signed state and current state and can show the differences
+Needs the author's signature and rules at creation. Ours needs no issuer: the owner's app records the baseline and works on scans and PDFs without signatures
+A. (same)
+Yriarte et al. 2022 [7]; Adobe Compare [27]
+Template-vs-scan region flags; manual two-file diff
+Already covered: we name fields, give a harmless/tamper verdict, run automatically
+C. Private cross-device alerts
+Carbonite, US 9935973 B2 (2018) [36]
+Consumer backup server compares file hashes across many users' devices; flags a common file changed on only one device, and detects ransomware by abnormal modification rate
+Works only for files shared by many users (system files) and gives the server plain hashes. Ours is for one person's unique documents, compares content fields, and uses keyed hashes so the server cannot confirm files
+D. Availability-aware alerts
+US 12056022 B1 [37]; US 10983873 B1 [38]; Elastic [24]
+Tiered (urgent vs normal) notifications by asset priority for backup admins; backup priority from a file's value to a user
+Admin-configured or backup-ordering only. Ours computes copies + backup + integrity per document and uses it to set tamper-alert urgency for an individual
+B. Consistency audit
+US 12034739 [39]; Waris et al. 2026 [28]; Shufti Pro [41]
+Verifier-side consistency checks of PII across sources, producing an integrity or trust score; transliteration-aware Aadhaar/PAN reconciliation for businesses
+All run for the verifier. Ours runs for the owner before they apply and explains which document to fix
+Useful official source found: UIDAI states that for PAN–Aadhaar linking a minor name mismatch can be resolved with Aadhaar OTP, but date of birth and gender must match exactly [40]. This gives the consistency audit an official rule for its equivalent / problem / blocking labels.
+IEEE Xplore note: domain-restricted searches returned no IEEE papers closer than those already listed; the closest IEEE items remain WIFS 2022 [7] and ICIS 2018 [29].
+Round 3: Scholar substitute and patent owners (12 Oct 2026)
+Patent owners, now confirmed on Google Patents: [37] is Dell Products L.P. (backup admins); [38] is Amazon Technologies (backup order for end users by a file's value to them, not alerting); [39] is Steady Platform Inc. (identity and income verification for lenders and benefit programs).
+Google Scholar refuses automated access, and the Semantic Scholar and OpenAlex APIs were rate-limited, so academic coverage came from searches restricted to arXiv, Semantic Scholar, ResearchGate, ScienceDirect, Springer, ACM and MDPI. Two items matter:
+Found
+What it shows
+Effect on our claim
+Pun, Javed, Doermann, 2023 survey [42]
+Detecting changes between versions of a document image is an established research area (content-based and layout-based methods)
+Do not claim version comparison itself. Our claim stays: owner-side, automatic, named-field report with a harmless/tamper verdict across devices
+Resistant AI Document Forensics [43]
+A commercial engine for lenders that shows if, where and how a submitted document was changed, including altered figures and text
+Field-level change reports exist for verifiers. Ours serves the document owner and does not need the document to pass through a lender
+Still recommended: one manual Google Scholar pass by your guide on "document version change detection", "field-level tamper detection" and "cross-document identity consistency", noting the top 10 results for each.
+Confirmed novelty statement
+Use this in the Introduction after round 2:
+Existing document-integrity methods rely on the issuer: a signature with change rules, a printed integrity code, or registration with a government locker. Others judge a single image without an original, or compare document versions on behalf of a verifier, through manual comparison tools, lender fraud engines, or document-image change-detection research. Identity-consistency checks exist, but they run for banks and verifiers, not for the person who holds the documents. To our knowledge, no system lets an individual, without issuer cooperation, automatically learn which named field of their own document changed and whether the change was harmless, coordinate such alerts across their devices without revealing documents to a server, and audit their own documents for cross-document mismatches before applying for a service.
+Contributions, in order of strength
+Owner-side field-level tamper detection with a harmless/tamper verdict (no issuer signature or code required).
+Owner-side cross-document consistency audit with Indian naming rules, grounded in official rules such as UIDAI's [40], and fix-it advice.
+Keyed-fingerprint cross-device alert protocol (vs plain-hash approaches such as [36]).
+Availability-aware alert urgency for one person (vs admin-configured tiers [37]).
+Synthetic benchmark with tamper pairs, harmless pairs and cross-document mismatch sets.
+Do not claim (add to the earlier list): rule-based detection of disallowed changes to signed PDFs [35], cross-device hash comparison for corruption or ransomware [36], tiered notifications by asset priority [37], PII consistency scoring [39], or change detection between document versions in general [42, 43].
+Related Work (draft for the paper)
+Bracketed numbers match the reference list below. Rewrite in your own voice before submission.
+Personal information management. Semantic desktop systems integrated personal files by meaning on a single machine [1, 2], and reviews show people still struggle to manage documents spread across devices [3, 4]. Consumer vault apps now add encrypted storage, OCR and expiry reminders, but none of these verifies whether a document's content has changed.
+Issuer-based document integrity. Integrity codes computed over a document's substantive content can be printed on it and re-verified from an OCR'd copy [5], and per-region integrity maps extend this to parts of a page [6]. Adobe's signed-PDF mechanism lets an author define which fields may change and flags disallowed differences between the signed and current states [35]. India's DigiLocker verifies documents pushed by registered issuers, but not documents users upload themselves [26]. All of these depend on the issuer acting at creation time.
+Reference-based and forensic tamper detection. Template methods store features of an original and flag changed regions in a scanned copy [7]; fuzzy and perceptual hashes tolerate print–scan noise [8]. Forensic models localize tampered text from a single image without any original [9, 10], and synthetic ID datasets support training them [11, 12]. Commercial tools compare two files that a user selects [27], lender-facing fraud engines show where and how a submitted document was altered [43], and change detection between document-image versions is an established research area [42]. None report which named field changed, separate harmless changes from tampering, or run automatically for an individual.
+Cross-device integrity and private identifiers. A consumer backup patent compares file hashes across many users' devices to flag a common file changed on one device and detects ransomware by modification rate [36]. Plain hashes, however, allow confirmation-of-file attacks; convergence secrets, server-aided keys and HMAC identifiers mitigate this in storage systems [13–15]. These have not been applied to tamper alerts for one person's unique documents.
+Alert prioritization. Enterprise tools weight alerts by administrator-assigned asset criticality [24], backup systems issue tiered notifications by asset priority [37], and file value to a user can set backup order [38]. Recovery systems prioritize restores by criticality [25]. None compute a per-document availability score to set an individual's tamper-alert urgency.
+Cross-document identity consistency. KYC platforms and patents check whether name, date of birth and address agree across documents and sources [30, 31, 39], India-focused APIs match names despite initials, order and transliteration [32, 33, 41], and academic work scores the correlation of a person's identity documents [28, 29]. All of these serve the verifier after submission. Name mismatches remain a common cause of failed PAN–Aadhaar linking, where UIDAI requires exact date of birth and gender [40].
+Malicious documents and ransomware. Static and ML detectors identify malicious PDF and Office files [16–18]; ransomware defences include behavioural monitoring [19, 20] and decoy files [21, 22], which decoy-aware ransomware can evade [23]. Our system integrates these as a baseline layer only.
+Gap. To our knowledge, no prior work gives an individual owner-side, field-level tamper explanations with a harmless/tamper verdict, private cross-device coordination, and a pre-application cross-document consistency audit, without relying on any issuer.
+References
+Verified against publisher, patent or institutional pages unless marked otherwise. Numbers 1–27 match the earlier prior-art doc.
+Sauermann, L. The Semantic Desktop. I-KNOW 2005.
+NEPOMUK consortium, Social Semantic Desktop, 2007–2011.
+Dinneen, J. D., Julien, C. A. The ubiquitous digital file. JASIST 71(1), 2020.
+Replace: Ali, Warraich & Butt entry from the original table could not be found. Related real paper: Ali, I., Warraich, N. F. Modeling the process of personal digital archiving through ubiquitous and desktop devices: A systematic review. J. Librarianship & Information Science 54(1), 2022 (confirm on the journal page).
+Wilson, K. S. Document integrity verification, US 7676501 B2, 2010.
+Kapinos, R. J. et al. (Lenovo). Verifying integrity of physical documents, US 9922278 B2, 2018.
+Yriarte, F., Puteaux, P., Tkachenko, I. A Two-Step Method for Ensuring Printed Document Integrity using Crossing Number Distances. IEEE WIFS 2022. HAL
+Katzenbeisser, S., Liu, H., Steinebach, M. Challenges and Solutions in Multimedia Document Authentication. IGI Global, 2010. DOI 10.4018/978-1-60566-836-9.ch007.
+Qu, C. et al. Towards Robust Tampered Text Detection in Document Image. CVPR 2023, pp. 5937–5946. paper
+James, H., Gupta, O., Raviv, D. OCR Graph Features for Manipulation Detection in Documents. arXiv 2009.05158
+Boned, C. et al. SIDTD: Synthetic dataset of ID and Travel Documents. Scientific Data, 2024. arXiv
+Korshunov, P. et al. FantasyID. IEEE IJCB 2025. paper
+Tahoe-LAFS. The Convergence Secret. docs
+Bellare, M., Keelveedhi, S., Ristenpart, T. DupLESS. USENIX Security 2013. page
+Sehat, H., Lucani, D. E., Pagnin, E. Bifrost. CloudNet 2022, pp. 203–210. arXiv
+Singh, P., Tapaswi, S., Gupta, S. Malware detection in PDF and office documents: a survey. Information Security Journal 29(3), 2020.
+Yerima, S. Y. et al. Malicious PDF detection based on ML with enhanced feature set. IEEE CICN 2022. Full author list to check.
+Hu, Y., Chen, J., Luo, X. UFADF. IEEE TrustCom 2023, pp. 881–888. DOI 10.1109/TrustCom60117.2023.00126.
+Oz, H. et al. A Survey on Ransomware. ACM Computing Surveys 54(11s), 2022.
+Mehnaz, S., Mudgerikar, A., Bertino, E. RWGuard. RAID 2018.
+Moore, C. Detecting Ransomware with Honeypot Techniques. IEEE CCC 2016. record
+Gómez-Hernández, J. A., Álvarez-González, L., García-Teodoro, P. R-Locker. Computers & Security 73, pp. 389–398, 2018. DOI 10.1016/j.cose.2017.11.019.
+Genç, Z. A., Lenzini, G., Sgandurra, D. On Deception-Based Protection Against Cryptographic Ransomware. DIMVA 2019, LNCS 11543, pp. 219–239.
+Elastic. Asset criticality. docs (vendor documentation)
+Automation and optimization of data recovery after a ransomware attack, US 11675672. Assignee to check.
+DigiLocker (Government of India). Assam IT Dept page
+Adobe. Compare two versions of a PDF file. help page (vendor documentation)
+Waris, N., Chourey, A., Tomar, M. S., Jhapate, A. K. A Hybrid Rule-Based and AI-Driven Framework for Multi-Document Identity Verification Using OCR, Entity Matching, and Cross-Document Consistency Analysis. IJFMR 8(4), July–August 2026. PDF Low-tier journal; some of its references look incorrect.
+Dangalla, S. et al. Measuring the Correlation of Personal Identity Documents in Structured Format. IEEE/ACIS ICIS 2018. DOI 10.1109/ICIS.2018.8466498. arXiv
+Sumsub. Cross Check Rules. docs (vendor documentation)
+Face++. Name and Address Consistency Checks. blog (vendor blog)
+HyperVerge. Name Match in Onboarding. blog (vendor blog)
+Cashfree. Name Match. docs (vendor documentation)
+DocuPro. Name mismatch on passport, Aadhaar and PAN. blog (service blog)
+Additional references from round 2
+[35] Pravetz, J. D., Chaudhury, K., Agrawal, S. C. (Adobe). Document modification detection and prevention, US 7735144 B2, granted 2010.
+[36] Crofton, T. W., Baker, C. M. (Carbonite, now Open Text). Systems and methods for automatic detection of malicious activity via common files, US 9935973 B2, granted 2018.
+[37] Minarik, J. M., Malamut, M. et al. (Dell Products L.P.). Enhanced prioritization on data protection assets, US 12056022 B1, filed 2023, granted 2024.
+[38] Blackard, A. G. (Amazon Technologies). Prioritizing electronic backup, US 10983873 B1, filed 2017, granted 2021.
+[39] Crudele, M. et al. (Steady Platform Inc.). Verification platform, US 12034739 B2, filed 2022, granted 2024.
+[40] UIDAI. FAQ: My name is different in PAN and Aadhaar. uidai.gov.in (official government source)
+[41] Shufti Pro. Identity Verification & KYC for India. page (vendor documentation)
+[42] Pun, A. K., Javed, M., Doermann, D. S. A Survey on Change Detection Techniques in Document Images. arXiv 2307.07691, 2023.
+[43] Resistant AI. Document Forensics. resistant.ai (vendor page). Do not cite the company's indicator guide found online; it is marked confidential.
+

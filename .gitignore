@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+build/
+.dart_tool/
+node_modules/
+data/
+models/
+*.db

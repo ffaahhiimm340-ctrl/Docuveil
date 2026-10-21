@@ -1,0 +1,52 @@
+﻿Synopsis
+1. Title of the Project
+Personal Document & File Intelligence System: A Unified Platform for Cross-Platform File Location, Lifecycle Management, and Security Awareness
+2. Introduction
+With the growing number of personal and professional documents spread across devices, external drives, and multiple cloud services, individuals increasingly struggle to locate, validate, and secure their important files. Existing tools address search, backup, or security in isolation, without a unified view of where a document is stored, whether it requires action, and whether it is safe. This project proposes an integrated Personal Document and File Intelligence System that combines cross-platform location intelligence, lifecycle management, and security awareness within a single application.
+3. Problem Statement
+Users often know that an important document exists but cannot recall where it is stored across devices, cloud accounts, and external media, while also losing track of its validity, backup status, and security. Current personal information management tools focus on single-device or single-cloud search, and cybersecurity techniques for documents are largely designed for enterprise infrastructures with centralized administration. No existing academic or commercial system unifies file-location intelligence, lifecycle tracking, and security awareness for an individual, non-enterprise user.
+4. Objectives
+To design a cross-platform file-indexing and semantic search mechanism for locating personal documents across local, external and cloud storage.
+To develop a document lifecycle module for tracking expiry, renewal status, and family document sharing.
+To create a composite Document Availability Score based on location redundancy, backup coverage, and file-integrity status.
+To implement sensitive-data detection and cryptographic integrity verification for personal documents.
+To integrate static, pre-execution scanning for malicious documents and detection of abnormal file-operation patterns associated with ransomware.
+To evaluate the proposed system against existing research and commercial tools.
+5. Scope of the Project
+The system is designed for individual and family users seeking to manage important personal documents such as identification papers, insurance policies, certificates, and financial records across multiple devices and cloud platforms. It can be extended to small offices requiring lightweight, low-infrastructure document oversight. The prototype will implement only those cross-platform and security integrations that are technically feasible within current operating-system and API permission models, ensuring a realistic and evaluable scope for a semester-length project.
+6. Methodology
+Conduct literature review and research-gap analysis across personal information management and document-security domains.
+Perform requirement analysis and assess feasibility of platform and cloud-API access constraints.
+Design system architecture covering indexing, lifecycle, and security modules.
+Develop a prototype integrating cross-platform indexing, semantic search, and lifecycle tracking.
+Implement AI/ML-based semantic search and security-detection components.
+Test and evaluate the prototype against benchmark datasets and usability criteria.
+Analyze results and compare with existing research and commercial systems.
+7. System Features
+Cross-platform, cross-cloud file location indexing and semantic search
+Document lifecycle tracking with expiry and renewal reminders
+Family document management and shared access
+Composite Document Availability Score (location, backup, integrity)
+Sensitive-data and privacy exposure detection
+Cryptographic file-integrity and tampering verification
+Static, pre-execution malicious-document scanning
+Detection of abnormal file-operation patterns indicative of ransomware
+8. Tools and Technologies
+Frontend: Cross-platform application framework (e.g., Flutter / Electron)
+Backend: Python / Node.js (FastAPI, Django, or Express)
+Database: PostgreSQL / MongoDB
+Cloud Integration: Google Drive, OneDrive, Dropbox APIs
+AI / NLP: Embedding-based semantic search
+Security: Cryptographic hashing (SHA-256), static malware analysis and ML classifiers
+Monitoring: File-operation anomaly detection
+9. Expected Outcomes
+A working prototype capable of locating personal documents across multiple platforms
+Improved awareness of document validity, backup coverage, and integrity status
+Early detection of potentially malicious or tampered documents within feasible permission limits
+A validated Document Availability Score as a measurable research contribution
+10. Future Scope
+Deeper integration with mobile operating-system storage APIs as permissions evolve
+Extension of malware detection to include cloud-based sandbox analysis
+Machine-learning-based personalization of document classification
+Expansion toward small-office and lightweight enterprise deployments
+
