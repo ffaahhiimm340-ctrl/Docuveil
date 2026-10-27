@@ -5,6 +5,7 @@ see which device sent a message and when; state that in the paper's threat model
 Storage is behind `Store` so PostgreSQL can replace the in-memory version.
 """
 
+import os
 import time
 from typing import Protocol
 
@@ -61,4 +62,14 @@ def create_app(store: Store | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def _default_store() -> Store:
+    """PostgreSQL (or any SQLAlchemy URL) when DATABASE_URL is set, else memory."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return MemoryStore()
+    from .store_sql import SqlStore
+
+    return SqlStore(url)
+
+
+app = create_app(_default_store())

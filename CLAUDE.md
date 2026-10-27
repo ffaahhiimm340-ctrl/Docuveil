@@ -26,6 +26,7 @@ Storage: encrypted SQLite on the device, PostgreSQL on the server (metadata only
 ## Progress
 - 2026-10-27: engine v0 (tamper compare, Indian name rules, audit, availability score, keyed fingerprints; 24 tests), dataset generator v0, relay server skeleton (in-memory store). Not done: app wiring, SQLite, OCR, PostgreSQL store, real baselines beyond SHA-256 / Jaro-Winkler.
 - 2026-10-27 (later): engine handles Indian amount formats (`10,00,000`) and an OCR-near tier (letter/digit confusions go to `review`, digit-to-digit changes never do). `dataset/generate.py --hard` adds subtle edits and OCR noise; `bin/evaluate.dart` prints per-subtype outcomes. On our hard set: 0 missed tampers, 0 false alarms, ~18% of harmless re-scans sent to review (OCR-like name noise), all from our own generator.
+- 2026-10-27 (sync): relay has a SQL store (PostgreSQL via `DATABASE_URL`; tests pass on memory, SQLite and PostgreSQL 16 in Docker on host port 55432, because another local project holds 5432). Engine `detectDivergence` turns relay entries into per-document alerts with urgency. Not done: the Dart HTTP client that calls the relay, key/owner-token pairing between devices.
 - The 100% scores from `bin/evaluate.dart` are on data from our own generator, so they only show the pipeline works. They are not paper results; the paper needs harder, independently designed cases and OCR noise.
 
 ## Hard rules
