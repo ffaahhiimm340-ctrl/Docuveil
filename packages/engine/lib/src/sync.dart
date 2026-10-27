@@ -71,7 +71,7 @@ List<DivergenceAlert> detectDivergence(
     alerts.add(
       DivergenceAlert(
         docTag: mine.docTag,
-        changedFields: namesForTags(key, tags, knownFields),
+        changedFields: namesForTags(key, mine.docTag, tags, knownFields),
         remoteDevice: e.deviceId,
         score: score,
         urgency: alertUrgency(score, tampered: true),

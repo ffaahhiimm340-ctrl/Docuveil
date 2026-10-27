@@ -240,7 +240,13 @@ void main() {
     test('changed field is found and mapped back to its name', () {
       final d2 = doc('m1', DocType.marksheet, {'name': 'Rahul', 'cgpa': '9.40'});
       final tags = changedFieldTags(fingerprint(key, d), fingerprint(key, d2));
-      expect(namesForTags(key, tags, d.fields.keys), ['cgpa']);
+      expect(namesForTags(key, fingerprint(key, d).docTag, tags, d.fields.keys), ['cgpa']);
+    });
+
+    test('the same field in two documents gets different tags', () {
+      final x = fingerprint(key, doc('a', DocType.pan, {'name': 'Rahul'}));
+      final y = fingerprint(key, doc('b', DocType.aadhaar, {'name': 'Rahul'}));
+      expect(x.fields.keys.toSet().intersection(y.fields.keys.toSet()), isEmpty);
     });
 
     test('equal values in different fields do not share tags', () {
