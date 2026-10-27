@@ -105,20 +105,20 @@ class ChangedScreen extends StatelessWidget {
       ],
     );
 
+    // The engine's verdict for the most serious changed copy.
+    final v = paper.verdict;
     final verdict = InfoBanner(
-      tone: Tone.bad,
+      tone: v == null || v.tamper ? Tone.bad : Tone.look,
       icon: Icons.warning_amber_rounded,
       child: Text.rich(
         TextSpan(
           style: AppText.body,
           children: [
             TextSpan(
-              text: 'This looks like tampering. ',
+              text: '${v?.title ?? 'No change found.'} ',
               style: AppText.bodyBold,
             ),
-            const TextSpan(
-              text: 'Saving, scanning or shrinking a file never changes a number.',
-            ),
+            TextSpan(text: v?.text ?? ''),
           ],
         ),
       ),

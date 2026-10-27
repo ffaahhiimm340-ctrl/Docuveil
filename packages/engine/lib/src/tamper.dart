@@ -142,7 +142,23 @@ ChangeReport compareVersions(
       harmlessNotes: notes,
     );
   }
-  final sim = textSimilarity(baseline.doc.text, current.doc.text);
+  // Tracked fields were compared above, so leave their values out here; this
+  // check is only for edits to the rest of the text.
+  // Matched on normalised words, so spacing and case do not stop a value
+  // from being found.
+  String untracked(String text, Map<String, String> f) {
+    var t = ' ${normalizeText(text)} ';
+    for (final v in f.values) {
+      final n = normalizeText(v);
+      if (n.isNotEmpty) t = t.replaceAll(' $n ', '  ');
+    }
+    return t;
+  }
+
+  final sim = textSimilarity(
+    untracked(baseline.doc.text, a),
+    untracked(current.doc.text, b),
+  );
   return ChangeReport(
     verdict: sim >= harmlessTextThreshold ? Verdict.harmless : Verdict.review,
     harmlessNotes: notes,

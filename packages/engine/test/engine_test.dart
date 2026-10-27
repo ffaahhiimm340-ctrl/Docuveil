@@ -108,6 +108,18 @@ void main() {
       expect(r.verdict, Verdict.tampered);
     });
 
+    test('reformatted field values in the text are not counted twice', () {
+      final a = doc('i', DocType.insurance, {'sum_assured': '500000', 'renewal_date': '12/03/2027'},
+          text: 'Policy sum_assured 500000 renewal_date 12/03/2027');
+      final c = doc('i', DocType.insurance, {'sum_assured': 'Rs. 5,00,000', 'renewal_date': '12 Mar 2027'},
+          text: 'Policy sum_assured Rs. 5,00,000 renewal_date 12 Mar 2027');
+      final r = compareVersions(
+        DocSnapshot.fromBytes(b('v1'), a),
+        DocSnapshot.fromBytes(b('v2'), c),
+      );
+      expect(r.verdict, Verdict.harmless);
+    });
+
     test('edit outside tracked fields goes to review', () {
       final edited = doc(
         'm1',
