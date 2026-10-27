@@ -13,12 +13,22 @@ enum Verdict { unchanged, harmless, review, tampered }
 enum ChangeKind { modified, added, removed }
 
 class FieldChange {
-  const FieldChange(this.field, this.kind, this.oldValue, this.newValue);
+  const FieldChange(
+    this.field,
+    this.kind,
+    this.oldValue,
+    this.newValue, {
+    this.possibleOcr = false,
+  });
 
   final String field;
   final ChangeKind kind;
   final String? oldValue;
   final String? newValue;
+
+  /// The two values differ only by characters OCR confuses, so this may be
+  /// a re-scan reading the same text differently rather than an edit.
+  final bool possibleOcr;
 
   String describe() => switch (kind) {
     ChangeKind.modified =>
@@ -44,6 +54,9 @@ class ChangeReport {
   String summary() => switch (verdict) {
     Verdict.unchanged => 'Unchanged.',
     Verdict.harmless => 'File changed, but no field did (re-save or re-scan).',
+    Verdict.review when changes.isNotEmpty =>
+      '${changes.map((c) => c.describe()).join('; ')}. This may just be the '
+          'scan reading the text differently. Please look at it.',
     Verdict.review =>
       'No tracked field changed, but the text differs. Please look at it.',
     Verdict.tampered => '${changes.map((c) => c.describe()).join('; ')}.',
@@ -106,14 +119,25 @@ ChangeReport compareVersions(
     } else if (y == null) {
       changes.add(FieldChange(key, ChangeKind.removed, x, null));
     } else if (normalizeField(key, x) != normalizeField(key, y)) {
-      changes.add(FieldChange(key, ChangeKind.modified, x, y));
+      changes.add(
+        FieldChange(
+          key,
+          ChangeKind.modified,
+          x,
+          y,
+          possibleOcr: ocrNear(normalizeField(key, x), normalizeField(key, y)),
+        ),
+      );
     } else if (x != y) {
       notes.add('${fieldLabel(key)} formatting differs');
     }
   }
   if (changes.isNotEmpty) {
     return ChangeReport(
-      verdict: Verdict.tampered,
+      // Only OCR-confusable differences: a person should look, not be alarmed.
+      verdict: changes.every((c) => c.possibleOcr)
+          ? Verdict.review
+          : Verdict.tampered,
       changes: changes,
       harmlessNotes: notes,
     );

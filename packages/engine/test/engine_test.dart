@@ -24,6 +24,19 @@ void main() {
       expect(normalizeNumber('8.740'), normalizeNumber('8.74'));
       expect(normalizeNumber('9.40'), isNot(normalizeNumber('8.74')));
     });
+    test('Indian amount formats agree', () {
+      expect(normalizeField('sum_assured', '10,00,000'), normalizeField('sum_assured', '1000000'));
+      expect(normalizeField('sum_assured', 'Rs. 5,00,000'), normalizeField('sum_assured', '500000'));
+      expect(normalizeField('sum_assured', '₹5,00,000'), normalizeField('sum_assured', '500000'));
+      expect(normalizeField('sum_assured', '10,00,000'), isNot(normalizeField('sum_assured', '50,00,000')));
+    });
+    test('OCR-near only for confusable letters, never for digit-to-digit', () {
+      expect(ocrNear('rahul', 'rahil'), isFalse); // u/i is not a pair
+      expect(ocrNear('rahul', 'rahui'), isTrue); // l/i is
+      expect(ocrNear('rahul', 'rahu1'), isTrue); // l/1
+      expect(ocrNear('8 74', 'b 74'), isTrue);
+      expect(ocrNear('8 74', '9 74'), isFalse);
+    });
     test('id numbers fold OCR letter/digit confusion but keep digit edits', () {
       expect(normalizeIdNumber('ABCPS 1234 O'), normalizeIdNumber('ABCPS12340'));
       expect(normalizeIdNumber('1234 5678'), isNot(normalizeIdNumber('1234 5679')));
@@ -74,6 +87,25 @@ void main() {
       );
       expect(r.verdict, Verdict.harmless);
       expect(r.harmlessNotes, isNotEmpty);
+    });
+
+    test('only an OCR-confusable difference goes to review, not tampered', () {
+      final scan = doc('m1', DocType.marksheet, {'name': 'Rahu1 Sharma', 'cgpa': '8.74', 'semester': '2'});
+      final r = compareVersions(
+        DocSnapshot.fromBytes(b('v1'), base),
+        DocSnapshot.fromBytes(b('v2'), scan),
+      );
+      expect(r.verdict, Verdict.review);
+      expect(r.changes.single.possibleOcr, isTrue);
+    });
+
+    test('a digit-to-digit change is never excused as OCR', () {
+      final edited = doc('m1', DocType.marksheet, {'name': 'Rahul Sharma', 'cgpa': '8.79', 'semester': '2'});
+      final r = compareVersions(
+        DocSnapshot.fromBytes(b('v1'), base),
+        DocSnapshot.fromBytes(b('v2'), edited),
+      );
+      expect(r.verdict, Verdict.tampered);
     });
 
     test('edit outside tracked fields goes to review', () {
