@@ -1,0 +1,14 @@
+# Local PostgreSQL for the relay. Development password only; never reuse it.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: docuveil
+      POSTGRES_PASSWORD: docuveil_dev
+      POSTGRES_DB: docuveil
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

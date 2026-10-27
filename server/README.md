@@ -14,6 +14,16 @@ What the server can learn: message timing and counts, device ids, how many field
 What it cannot learn: content, field names, values, or whether a tag matches a known file
 (tags are HMAC-SHA256 under a key it never sees).
 
+Storage: memory by default. Set `DATABASE_URL` to use SQL, for example PostgreSQL from
+`docker-compose.yml`:
+
+```bash
+docker compose up -d db
+set DATABASE_URL=postgresql+psycopg://docuveil:docuveil_dev@localhost:5432/docuveil
+```
+
+The SQL store is tested on SQLite; it has not yet been run against a real PostgreSQL.
+
 ```bash
 py -3.12 -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
