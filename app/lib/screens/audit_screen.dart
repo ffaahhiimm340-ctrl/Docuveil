@@ -174,7 +174,7 @@ class _AuditScreenState extends State<AuditScreen> {
                         text: r.values[r.oddIndex!],
                         style: AppText.bodyBold,
                       ),
-                      TextSpan(text: '. ${r.reason ?? ''}.'),
+                      TextSpan(text: '. ${_sentence(r.reason)}'),
                     ],
                   ),
                 ),
@@ -254,6 +254,10 @@ class _AuditScreenState extends State<AuditScreen> {
     );
   }
 }
+
+/// "spelling differs" -> "Spelling differs."
+String _sentence(String? s) =>
+    s == null || s.isEmpty ? '' : '${s[0].toUpperCase()}${s.substring(1)}.';
 
 class _Value extends StatelessWidget {
   const _Value(this.label, this.value, this.tone);

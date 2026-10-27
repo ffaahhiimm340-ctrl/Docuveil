@@ -109,8 +109,16 @@ bool ocrNear(String a, String b) {
   return true;
 }
 
-/// Human label for a field key: `father_name` -> `Father name`.
+const _labels = {
+  'dob': 'Date of birth',
+  'father_name': "Father's name",
+  'cgpa': 'CGPA',
+};
+
+/// Human label for a field key: `expiry_date` -> `Expiry date`.
 String fieldLabel(String key) {
+  final known = _labels[key];
+  if (known != null) return known;
   final s = key.replaceAll('_', ' ');
   return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }

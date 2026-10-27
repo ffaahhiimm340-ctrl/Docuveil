@@ -2,7 +2,6 @@ import 'package:docuveil/data/audit_rows.dart';
 import 'package:docuveil/data/vault.dart';
 import 'package:docuveil_engine/docuveil_engine.dart' show AuditPurpose;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common/sqlite_api.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
