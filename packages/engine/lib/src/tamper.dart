@@ -33,8 +33,9 @@ class FieldChange {
   String describe() => switch (kind) {
     ChangeKind.modified =>
       '${fieldLabel(field)} changed from $oldValue to $newValue',
-    ChangeKind.added => '${fieldLabel(field)} was added: $newValue',
-    ChangeKind.removed => '${fieldLabel(field)} was removed (was $oldValue)',
+    ChangeKind.added => '${fieldLabel(field)} appears on this copy: $newValue',
+    ChangeKind.removed =>
+      '${fieldLabel(field)} could not be read on this copy (was $oldValue)',
   };
 }
 
@@ -135,7 +136,10 @@ ChangeReport compareVersions(
   if (changes.isNotEmpty) {
     return ChangeReport(
       // Only OCR-confusable differences: a person should look, not be alarmed.
-      verdict: changes.every((c) => c.possibleOcr)
+      // Tampering needs a value that was read on both copies and differs in
+      // a way a scan cannot explain. A field missing on one side is more
+      // often unreadable than deleted, so it only asks for a look.
+      verdict: changes.every((c) => c.possibleOcr || c.kind != ChangeKind.modified)
           ? Verdict.review
           : Verdict.tampered,
       changes: changes,

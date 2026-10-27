@@ -2,6 +2,7 @@ library;
 
 export 'src/audit.dart';
 export 'src/availability.dart';
+export 'src/extract.dart';
 export 'src/fingerprint.dart';
 export 'src/models.dart';
 export 'src/naming.dart';

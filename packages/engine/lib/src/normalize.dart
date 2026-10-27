@@ -70,7 +70,10 @@ String normalizeIdNumber(String s) => s
     .replaceAll(RegExp(r'[\s\-]'), '')
     .replaceAll('O', '0')
     .replaceAll('I', '1')
-    .replaceAll('L', '1');
+    .replaceAll('L', '1')
+    .replaceAll('S', '5')
+    .replaceAll('B', '8')
+    .replaceAll('Z', '2');
 
 String normalizeGender(String s) {
   final t = normalizeText(s);
@@ -99,7 +102,12 @@ const _ocrPairs = {
 /// True if [a] and [b] (already normalised) differ only by up to two
 /// substitutions of OCR-confusable characters.
 bool ocrNear(String a, String b) {
-  if (a.length != b.length || a == b) return false;
+  if (a == b) return false;
+  // "rn" and "m" look alike in print; compare with both written as "m".
+  a = a.replaceAll('rn', 'm');
+  b = b.replaceAll('rn', 'm');
+  if (a == b) return true;
+  if (a.length != b.length) return false;
   var diff = 0;
   for (var i = 0; i < a.length; i++) {
     if (a[i] == b[i]) continue;
