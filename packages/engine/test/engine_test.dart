@@ -134,14 +134,24 @@ void main() {
       expect(r.verdict, Verdict.review);
     });
 
-    test('removed field is reported', () {
+    test('a field that could not be read is reported for a look, not as tampering', () {
       final edited = doc('m1', DocType.marksheet, {'name': 'Rahul Sharma', 'cgpa': '8.74'});
       final r = compareVersions(
         DocSnapshot.fromBytes(b('v1'), base),
         DocSnapshot.fromBytes(b('v2'), edited),
       );
-      expect(r.verdict, Verdict.tampered);
+      expect(r.verdict, Verdict.review);
       expect(r.changes.single.kind, ChangeKind.removed);
+      expect(r.summary(), contains('could not be read'));
+    });
+
+    test('a real edit next to an unreadable field is still tampering', () {
+      final edited = doc('m1', DocType.marksheet, {'name': 'Rahul Sharma', 'cgpa': '9.40'});
+      final r = compareVersions(
+        DocSnapshot.fromBytes(b('v1'), base),
+        DocSnapshot.fromBytes(b('v2'), edited),
+      );
+      expect(r.verdict, Verdict.tampered);
     });
   });
 
