@@ -71,7 +71,7 @@ void main() {
       expect(r.changes.single.field, 'cgpa');
       expect(r.changes.single.oldValue, '8.74');
       expect(r.changes.single.newValue, '9.40');
-      expect(r.summary(), contains('Cgpa changed from 8.74 to 9.40'));
+      expect(r.summary(), contains('CGPA changed from 8.74 to 9.40'));
     });
 
     test('re-scan with formatting noise is harmless', () {
@@ -187,7 +187,7 @@ void main() {
       final r = audit([aadhaar, marks], purpose: AuditPurpose.panAadhaarLink);
       final dob = r.mismatches.firstWhere((m) => m.field == 'dob');
       expect(dob.level, MatchLevel.blocking);
-      expect(dob.advice, contains('Update the dob on your Aadhaar'));
+      expect(dob.advice, contains('Update the date of birth on your Aadhaar'));
       expect(dob.advice, contains('marksheet'));
       expect(r.hasBlocking, isTrue);
     });
