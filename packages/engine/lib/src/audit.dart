@@ -15,6 +15,7 @@ class Mismatch {
     required this.level,
     required this.reason,
     required this.advice,
+    required this.fix,
   });
 
   final String field;
@@ -25,6 +26,9 @@ class Mismatch {
   final MatchLevel level;
   final String reason;
   final String advice;
+
+  /// The document to correct: whichever of [docA] / [docB] is trusted less.
+  final ExtractedDoc fix;
 }
 
 class AuditReport {
@@ -64,20 +68,44 @@ String _docName(DocType t) => switch (t) {
   DocType.passport => 'passport',
 };
 
+bool _sameValue(String field, String x, String y) =>
+    (field == 'name' || field == 'father_name')
+    ? compareNames(x, y).level == MatchLevel.equivalent
+    : normalizeField(field, x) == normalizeField(field, y);
+
+/// (reference, fix): the document to trust and the one to correct. The value
+/// most documents agree on wins; the trust order only breaks ties.
+(ExtractedDoc, ExtractedDoc) _pickFix(
+  String field,
+  ExtractedDoc a,
+  ExtractedDoc b,
+  List<ExtractedDoc> all,
+) {
+  int support(ExtractedDoc d) => all
+      .where(
+        (o) =>
+            o.fields[field] != null &&
+            _sameValue(field, d.fields[field]!, o.fields[field]!),
+      )
+      .length;
+  final sa = support(a), sb = support(b);
+  if (sa != sb) return sa > sb ? (a, b) : (b, a);
+  final order = _trust[field] ?? _trust['default']!;
+  return order.indexOf(a.type) <= order.indexOf(b.type) ? (a, b) : (b, a);
+}
+
 String _advice(
   String field,
   ExtractedDoc a,
   ExtractedDoc b,
   MatchLevel level,
   AuditPurpose purpose,
+  List<ExtractedDoc> all,
 ) {
   if (level == MatchLevel.equivalent) {
     return 'No action needed: this is the same value written differently.';
   }
-  final order = _trust[field] ?? _trust['default']!;
-  final aFirst = order.indexOf(a.type) <= order.indexOf(b.type);
-  final ref = aFirst ? a : b;
-  final fix = aFirst ? b : a;
+  final (ref, fix) = _pickFix(field, a, b, all);
   final base =
       'Update the ${fieldLabel(field).toLowerCase()} on your '
       '${_docName(fix.type)} to match your ${_docName(ref.type)}.';
@@ -133,7 +161,8 @@ AuditReport audit(
             valueB: y,
             level: m.level,
             reason: m.reason,
-            advice: _advice(field, a, b, m.level, purpose),
+            advice: _advice(field, a, b, m.level, purpose, list),
+            fix: _pickFix(field, a, b, list).$2,
           ),
         );
       }

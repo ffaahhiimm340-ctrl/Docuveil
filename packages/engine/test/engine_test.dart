@@ -160,6 +160,14 @@ void main() {
       expect(r.hasBlocking, isTrue);
     });
 
+    test('the odd one out is the one to fix, even if it is more trusted', () {
+      // Two papers say 05/03, the marksheet says 15/03.
+      final r = audit([aadhaar, pan, marks]);
+      final dob = r.mismatches.where((m) => m.field == 'dob' && m.level == MatchLevel.blocking);
+      expect(dob, isNotEmpty);
+      expect(dob.every((m) => m.fix.id == 'm'), isTrue);
+    });
+
     test('PAN-Aadhaar name mismatch mentions the OTP route', () {
       final p = doc('p2', DocType.pan, {'name': 'Rahul Sharma'});
       final r = audit([aadhaar, p], purpose: AuditPurpose.panAadhaarLink);

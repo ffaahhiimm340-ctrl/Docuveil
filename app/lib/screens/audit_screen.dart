@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/audit_rows.dart';
+import '../data/vault.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/buttons.dart';
 import '../widgets/cards.dart';
 import '../widgets/chips.dart';
 import '../widgets/layout.dart';
-
-/// How one detail compares across the owner's papers. Labels follow the
-/// research plan: equivalent (fine), likely problem (worth a look), blocking.
-enum Verdict { fine, look, fix }
 
 extension VerdictX on Verdict {
   Tone get tone => switch (this) {
@@ -25,46 +23,6 @@ extension VerdictX on Verdict {
   };
 }
 
-class _Row {
-  const _Row(this.detail, this.values, this.verdict, {this.oddIndex});
-  final String detail;
-
-  /// One value per paper in [_papers]; null means the paper does not show it.
-  final List<String?> values;
-  final Verdict verdict;
-  final int? oddIndex;
-}
-
-const _papers = ['Aadhaar', 'PAN', 'Marksheet', 'Certificate'];
-const _where = ['Phone', 'Laptop', 'Drive', 'Laptop'];
-
-const _rows = [
-  _Row(
-    'Date of birth',
-    ['04 Jul 2001', '04 Jul 2001', '14 Jul 2001', null],
-    Verdict.fix,
-    oddIndex: 2,
-  ),
-  _Row(
-    'Surname',
-    ['Verma', 'Verma', 'Verma', 'Varma'],
-    Verdict.look,
-    oddIndex: 3,
-  ),
-  _Row('First names', [
-    'Asha R.',
-    'Asha Rajesh',
-    'Asha Rajesh',
-    'Asha Rajesh',
-  ], Verdict.fine),
-  _Row("Father's name", [
-    'Rajesh Verma',
-    'R Verma',
-    'Rajesh Verma',
-    null,
-  ], Verdict.fine),
-];
-
 /// 12 Check before applying: do all my papers agree for this purpose?
 class AuditScreen extends StatefulWidget {
   const AuditScreen({super.key});
@@ -77,11 +35,27 @@ class _AuditScreenState extends State<AuditScreen> {
   static const _purposes = ['PAN and Aadhaar link', 'Passport', 'Exam form'];
   String _purpose = _purposes.first;
 
-  int _count(Verdict v) => _rows.where((r) => r.verdict == v).length;
+  @override
+  void initState() {
+    super.initState();
+    Vault.docs.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    Vault.docs.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     final wide = Breakpoints.isWide(context);
+    // The engine compares the papers in the vault, so the result follows the
+    // purpose picked above.
+    final view = buildAuditView(Vault.docs.value, purposeFor(_purpose));
+    int count(Verdict v) => view.count(v);
 
     final purposes = Wrap(
       spacing: 8,
@@ -111,7 +85,7 @@ class _AuditScreenState extends State<AuditScreen> {
               child: Column(
                 children: [
                   Text(
-                    '${_count(v)}',
+                    '${count(v)}',
                     style: AppText.num(24).copyWith(color: v.tone.fg),
                   ),
                   Text(
@@ -131,10 +105,14 @@ class _AuditScreenState extends State<AuditScreen> {
       ],
     );
 
-    final fix = _rows.firstWhere((r) => r.verdict == Verdict.fix);
+    /// A paper that agrees with the odd one out, to show beside it.
+    int refOf(AuditRow r) => r.values.indexWhere(
+      (v) => v != null,
+      r.oddIndex == 0 ? 1 : 0,
+    );
 
     final cards = <Widget>[
-      for (final r in _rows.where((r) => r.verdict != Verdict.fine))
+      for (final r in view.actionable)
         AppCard(
           borderColor: r.verdict == Verdict.fix
               ? AppColors.bad
@@ -154,15 +132,15 @@ class _AuditScreenState extends State<AuditScreen> {
                   children: [
                     Expanded(
                       child: _Value(
-                        '${_papers[0]} · ${_where[0]}',
-                        r.values[0] ?? '',
+                        '${view.papers[refOf(r)]} · ${view.where[refOf(r)]}',
+                        r.values[refOf(r)] ?? '',
                         Tone.gray,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Value(
-                        '${_papers[r.oddIndex!]} · ${_where[r.oddIndex!]}',
+                        '${view.papers[r.oddIndex!]} · ${view.where[r.oddIndex!]}',
                         r.values[r.oddIndex!] ?? '',
                         Tone.bad,
                       ),
@@ -175,9 +153,7 @@ class _AuditScreenState extends State<AuditScreen> {
                     style: AppText.body,
                     children: [
                       TextSpan(text: 'Fix: ', style: AppText.bodyBold),
-                      const TextSpan(
-                        text: 'ask your university to correct the marksheet. This link needs the date to match exactly.',
-                      ),
+                      TextSpan(text: r.advice ?? ''),
                     ],
                   ),
                 ),
@@ -186,34 +162,48 @@ class _AuditScreenState extends State<AuditScreen> {
                   TextSpan(
                     style: AppText.body,
                     children: [
-                      TextSpan(text: 'Aadhaar says '),
-                      TextSpan(text: r.values[0], style: AppText.bodyBold),
-                      TextSpan(text: '. Degree certificate (Laptop) says '),
-                      TextSpan(text: r.values[3], style: AppText.bodyBold),
-                      const TextSpan(text: '. Probably a typing slip.'),
+                      TextSpan(text: '${view.papers[refOf(r)]} says '),
+                      TextSpan(
+                        text: r.values[refOf(r)],
+                        style: AppText.bodyBold,
+                      ),
+                      TextSpan(
+                        text: '. ${view.papers[r.oddIndex!]} (${view.where[r.oddIndex!]}) says ',
+                      ),
+                      TextSpan(
+                        text: r.values[r.oddIndex!],
+                        style: AppText.bodyBold,
+                      ),
+                      TextSpan(text: '. ${r.reason ?? ''}.'),
                     ],
                   ),
                 ),
             ],
           ),
         ),
-      InfoBanner(
-        tone: Tone.ok,
-        child: Text.rich(
-          TextSpan(
-            style: AppText.body,
-            children: [
-              TextSpan(text: 'Name is fine. ', style: AppText.bodyBold),
-              const TextSpan(
-                text: '"Asha R. Verma" and "Asha Rajesh Verma" match.',
-              ),
-            ],
+      for (final r in view.rows.where(
+        (r) =>
+            r.verdict == Verdict.fine &&
+            r.values.whereType<String>().toSet().length > 1,
+      ))
+        InfoBanner(
+          tone: Tone.ok,
+          child: Text.rich(
+            TextSpan(
+              style: AppText.body,
+              children: [
+                TextSpan(text: '${r.detail} is fine. ', style: AppText.bodyBold),
+                TextSpan(
+                  text:
+                      '${r.values.whereType<String>().toSet().map((v) => '"$v"').join(' and ')} match.',
+                ),
+              ],
+            ),
           ),
         ),
-      ),
     ];
 
-    final steps = _Steps(fix: fix);
+    final steps = _Steps(view: view);
 
     return PageScaffold(
       title: 'Check before applying',
@@ -243,12 +233,12 @@ class _AuditScreenState extends State<AuditScreen> {
                 children: [
                   for (final v in Verdict.values.reversed)
                     StatusChip(
-                      '${_count(v)} ${v.label.toLowerCase()}',
+                      '${count(v)} ${v.label.toLowerCase()}',
                       tone: v.tone,
                     ),
                 ],
               ),
-              _Table(),
+              _Table(view),
               Text(
                 '"R" and "Rajesh" count as the same name, so they are marked Fine. A different date of birth never counts as the same, so it is marked Needs fixing.',
                 style: AppText.sub,
@@ -297,8 +287,12 @@ class _Value extends StatelessWidget {
 }
 
 class _Table extends StatelessWidget {
+  const _Table(this.view);
+  final AuditView view;
+
   @override
   Widget build(BuildContext context) {
+    final papers = view.papers, places = view.where, rows = view.rows;
     Widget head(String t, String w) => Expanded(
       flex: 2,
       child: Column(
@@ -322,8 +316,8 @@ class _Table extends StatelessWidget {
                   flex: 2,
                   child: Text('Detail', style: AppText.smallBold),
                 ),
-                for (var i = 0; i < _papers.length; i++)
-                  head(_papers[i], _where[i]),
+                for (var i = 0; i < papers.length; i++)
+                  head(papers[i], places[i]),
                 Expanded(
                   flex: 2,
                   child: Text('Result', style: AppText.smallBold),
@@ -331,14 +325,14 @@ class _Table extends StatelessWidget {
               ],
             ),
           ),
-          for (final r in _rows) ...[
+          for (final r in rows) ...[
             const Divider(height: 1, color: AppColors.line),
             Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
                   Expanded(flex: 2, child: Text(r.detail, style: AppText.t3)),
-                  for (var i = 0; i < _papers.length; i++)
+                  for (var i = 0; i < papers.length; i++)
                     Expanded(
                       flex: 2,
                       child: Container(
@@ -391,11 +385,12 @@ class _Table extends StatelessWidget {
 }
 
 class _Steps extends StatelessWidget {
-  const _Steps({required this.fix});
-  final _Row fix;
+  const _Steps({required this.view});
+  final AuditView view;
 
   @override
   Widget build(BuildContext context) {
+    final todo = view.actionable;
     return AppCard(
       radius: 24,
       padding: const EdgeInsets.all(22),
@@ -404,24 +399,20 @@ class _Steps extends StatelessWidget {
         children: [
           Text('Fix these, in this order', style: AppText.t2),
           const SizedBox(height: 14),
-          const FixStep(
-            1,
-            Tone.bad,
-            'Correct the date of birth on your marksheet',
-            'Ask your university exam office. The link needs the date to match exactly.',
-          ),
-          const FixStep(
-            2,
-            Tone.look,
-            'Check the spelling on your degree certificate',
-            'It says "Varma". It can wait.',
-          ),
-          const FixStep(
-            3,
-            Tone.ok,
-            'Then link your PAN and Aadhaar',
-            'We will remind you once the marksheet is fixed.',
-          ),
+          if (todo.isEmpty)
+            const FixStep(
+              1,
+              Tone.ok,
+              'Your papers agree',
+              'Nothing to fix before you apply.',
+            ),
+          for (var i = 0; i < todo.length; i++)
+            FixStep(
+              i + 1,
+              todo[i].verdict.tone,
+              '${todo[i].detail}: ${view.papers[todo[i].oddIndex!]} needs attention',
+              todo[i].advice ?? '',
+            ),
           const SizedBox(height: 4),
           AppButton.primary(
             'Save these steps as a checklist',
