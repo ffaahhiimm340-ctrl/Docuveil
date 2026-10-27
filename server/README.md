@@ -19,10 +19,11 @@ Storage: memory by default. Set `DATABASE_URL` to use SQL, for example PostgreSQ
 
 ```bash
 docker compose up -d db
-set DATABASE_URL=postgresql+psycopg://docuveil:docuveil_dev@localhost:5432/docuveil
+set DATABASE_URL=postgresql+psycopg://docuveil:docuveil_dev@localhost:55432/docuveil
 ```
 
-The SQL store is tested on SQLite; it has not yet been run against a real PostgreSQL.
+The tests run the same cases against memory, SQLite and, when `TEST_DATABASE_URL` is set to the
+URL above, PostgreSQL 16 (verified 2026-10-27, all pass).
 
 ```bash
 py -3.12 -m venv .venv

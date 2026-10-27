@@ -1,5 +1,8 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.main import MemoryStore, create_app
 from app.store_sql import SqlStore
@@ -12,9 +15,21 @@ def fp(device, value):
     return {"device_id": device, "doc": TAG, "fields": {"b" * 64: value * 64}}
 
 
-@pytest.fixture(params=["memory", "sql"])
+PG_URL = os.environ.get("TEST_DATABASE_URL")
+
+
+@pytest.fixture(params=["memory", "sqlite", "postgres"])
 def client(request):
-    store = MemoryStore() if request.param == "memory" else SqlStore("sqlite://")
+    if request.param == "memory":
+        store = MemoryStore()
+    elif request.param == "sqlite":
+        store = SqlStore("sqlite://")
+    else:
+        if not PG_URL:
+            pytest.skip("set TEST_DATABASE_URL to run against PostgreSQL")
+        store = SqlStore(PG_URL)
+        with store.engine.begin() as c:  # start from an empty table, seq at 1
+            c.execute(text("TRUNCATE fingerprints RESTART IDENTITY"))
     return TestClient(create_app(store))
 
 

@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: docuveil_dev
       POSTGRES_DB: docuveil
     ports:
-      - "5432:5432"
+      - "55432:5432" # not 5432, which other local projects often use
     volumes:
       - pgdata:/var/lib/postgresql/data
 volumes:
