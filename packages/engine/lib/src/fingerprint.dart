@@ -30,8 +30,11 @@ String _hmac(List<int> key, String domain, String data) => Hmac(
   key,
 ).convert(utf8.encode('$domain\u0000$data')).toString();
 
-/// Tag for a field name. Devices keep the tag -> name table locally.
-String fieldTag(List<int> key, String field) => _hmac(key, 'field', field);
+/// Tag for a field name within one document. Bound to [docTag] so the relay
+/// cannot see that two documents share a field (which would hint at their
+/// type). Devices rebuild the tag -> name table locally.
+String fieldTag(List<int> key, String docTag, String field) =>
+    _hmac(key, 'field', '$docTag\u0000$field');
 
 /// Build the keyed fingerprint of a document. The value tag also covers the
 /// field name and doc id, so equal values in different fields or documents
@@ -40,7 +43,7 @@ FingerprintSet fingerprint(List<int> key, ExtractedDoc doc) {
   final docTag = _hmac(key, 'doc', doc.id);
   return FingerprintSet(docTag, {
     for (final e in doc.fields.entries)
-      fieldTag(key, e.key): _hmac(
+      fieldTag(key, docTag, e.key): _hmac(
         key,
         'value',
         '${doc.id}\u0000${e.key}\u0000${normalizeField(e.key, e.value)}',
@@ -54,12 +57,13 @@ Set<String> changedFieldTags(FingerprintSet a, FingerprintSet b) => {
     if (a.fields[t] != b.fields[t]) t,
 };
 
-/// Turn changed tags back into field names using the local table.
+/// Turn changed tags of the document [docTag] back into field names.
 List<String> namesForTags(
   List<int> key,
+  String docTag,
   Iterable<String> tags,
   Iterable<String> knownFields,
 ) {
-  final table = {for (final f in knownFields) fieldTag(key, f): f};
+  final table = {for (final f in knownFields) fieldTag(key, docTag, f): f};
   return [for (final t in tags) table[t] ?? 'unknown field'];
 }
