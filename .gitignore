@@ -5,6 +5,6 @@ __pycache__/
 build/
 .dart_tool/
 node_modules/
-data/
-models/
+/data/
+/models/
 *.db
