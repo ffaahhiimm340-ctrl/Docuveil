@@ -75,6 +75,32 @@ Valid Till : 12/03/2027''');
     expect(f['expiry_date'], '12/03/2027');
   });
 
+  test('OCR that drops spaces: values glued to labels are still found', () {
+    final f = extractFields(DocType.passport, '''
+Surname
+VERMA
+GivenName(s)
+ASHARAJESH
+SexF
+DateofBirth17Oct1993
+PassportNo.W6669725''');
+    expect(f['gender'], 'F');
+    expect(normalizeField('dob', f['dob']!), '1993-10-17');
+    expect(f['id_number'], 'W6669725');
+    expect(normalizeField('name', f['name']!), normalizeField('name', 'Asha Rajesh Verma'));
+  });
+
+  test('an edited number the extractor did not read is never harmless', () {
+    ExtractedDoc d(String text) =>
+        ExtractedDoc(id: 'x', type: DocType.passport, fields: const {}, text: text);
+    final r = compareVersions(
+      DocSnapshot('a', d('Surname VERMA Date of Birth 17 Oct 1993 Result PASS')),
+      DocSnapshot('b', d('Surname VERMA Date of Birth 17 Oct 1996 Result PASS')),
+    );
+    expect(r.verdict, Verdict.review);
+    expect(r.harmlessNotes, contains('a number elsewhere on the page differs'));
+  });
+
   test('a missing label gives no field rather than a wrong one', () {
     final f = extractFields(DocType.pan, 'INCOME TAX DEPARTMENT\nSignature');
     expect(f.containsKey('name'), isFalse);

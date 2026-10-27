@@ -89,7 +89,8 @@ String normalizeField(String key, String value) {
   if (key == 'gender') return normalizeGender(value);
   if (key.endsWith('_number')) return normalizeIdNumber(value);
   if (_plainNumber(value) != null) return normalizeNumber(value);
-  return normalizeText(value);
+  // Spacing is not content: OCR may drop or add spaces between words.
+  return normalizeText(value).replaceAll(' ', '');
 }
 
 /// Pairs of characters OCR commonly confuses. Digit-to-digit is never here,

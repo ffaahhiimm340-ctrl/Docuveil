@@ -45,7 +45,10 @@ Map<String, String> extractFields(DocType type, String text) {
       if (surname != null || given != null) {
         put('name', [given, surname].whereType<String>().join(' '));
       }
-      put('gender', x.valueOf(_label(r'sex'), pattern: RegExp(r'\b[MFX]\b')));
+      put(
+        'gender',
+        x.find(_sexLine) ?? x.valueOf(_label(r'sex'), pattern: RegExp(r'\b[MFX]\b')),
+      );
       put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
       put('id_number', x.valueOf(_label(r'passport no\.?'), pattern: _passportNo));
       put('expiry_date', x.valueOf(_label(r'date of expiry'), pattern: _date));
@@ -77,13 +80,17 @@ String _digits(String s) => s
 // --- patterns ---------------------------------------------------------------
 
 const _d = '[0-9OoIl|SB]'; // a digit, or a letter OCR prints for one
+// Numbers are bounded by "not a digit" rather than \b, because OCR that drops
+// spaces glues them to the label ("DateofBirth17Oct1993").
+const _nd = '(?<![0-9])', _ndAfter = '(?![0-9])';
 final _date = RegExp(
-  '\\b($_d{1,2}[/\\-.]$_d{1,2}[/\\-.]$_d{4}|$_d{1,2} [A-Za-z]{3,9} $_d{4})\\b',
+  '$_nd($_d{1,2}[/\\-.]$_d{1,2}[/\\-.]$_d{4}|$_d{1,2} ?[A-Za-z]{3,9} ?$_d{4})$_ndAfter',
 );
-final _gpa = RegExp('\\b$_d{1,2}\\.$_d{1,2}\\b');
-final _aadhaarNo = RegExp('\\b$_d{4} ?$_d{4} ?$_d{4}\\b');
+final _gpa = RegExp('$_nd$_d{1,2}\\.$_d{1,2}$_ndAfter');
+final _aadhaarNo = RegExp('$_nd$_d{4} ?$_d{4} ?$_d{4}$_ndAfter');
 final _panNo = RegExp(r'\b[A-Z]{5}[0-9OIlSB]{4}[A-Z]\b');
-final _passportNo = RegExp('\\b[A-Z]$_d{7}\\b');
+final _passportNo = RegExp('[A-Z]$_d{7}$_ndAfter');
+final _sexLine = RegExp(r'^sex\s*[:\-]?\s*([MFX])$', caseSensitive: false);
 final _amount = RegExp(r'((rs\.?|inr|₹)\s*)?[0-9OoIlSB][0-9OoIlSB,]*', caseSensitive: false);
 final _gender = RegExp(r'^(male|female|transgender)$', caseSensitive: false);
 final _relation = RegExp(r'^(s|d|c|w)\s*/\s*o\s*:?\s*([^,]+)', caseSensitive: false);
@@ -108,9 +115,13 @@ RegExp _label(String body) {
   for (var i = 0; i < body.length; i++) {
     final c = body[i];
     final escaped = i > 0 && body[i - 1] == '\\';
-    out.write(!escaped && _looksLike.containsKey(c) ? _looksLike[c] : c);
+    if (!escaped && c == ' ') {
+      out.write(r'\s*'); // some OCR models drop the spaces between words
+    } else {
+      out.write(!escaped && _looksLike.containsKey(c) ? _looksLike[c] : c);
+    }
   }
-  out.write('(?![a-z0-9])');
+  out.write('(?![a-z])'); // a digit right after a label is its value
   return RegExp(out.toString(), caseSensitive: false);
 }
 
@@ -124,7 +135,7 @@ String? _clean(String? v, RegExp? pattern) {
   if (identical(pattern, _date)) {
     return s.contains(RegExp('[A-Za-z]{3}'))
         ? s.replaceFirstMapped(
-            RegExp(r'^(\S+)( [A-Za-z]{3,9} )(\S+)$'),
+            RegExp(r'^(\S{1,2}?)(\s*[A-Za-z]{3,9}\s*)(\S+)$'),
             (m) => '${_digits(m[1]!)}${m[2]}${_digits(m[3]!)}',
           )
         : _digits(s);
@@ -139,8 +150,10 @@ String? _clean(String? v, RegExp? pattern) {
   return s;
 }
 
+/// A line that is only a name (letters, spaces, full stops). OCR may have
+/// run the words together, so one long word counts too.
 String? _nameOnly(String line) =>
-    RegExp(r'^[A-Za-z .]+$').hasMatch(line) && line.split(' ').length >= 2 ? line : null;
+    RegExp(r'^[A-Za-z .]{3,}$').hasMatch(line) ? line : null;
 
 String? _semester(String? v) {
   if (v == null) return null;
@@ -204,6 +217,7 @@ class _Lines {
       final m = pattern.firstMatch(l);
       if (m == null) continue;
       if (identical(pattern, _relation)) return m.group(2)!.trim();
+      if (identical(pattern, _sexLine)) return m.group(1)!.toUpperCase();
       if (identical(pattern, _aadhaarNo)) return _digits(m.group(0)!);
       if (identical(pattern, _panNo)) {
         final s = m.group(0)!;
