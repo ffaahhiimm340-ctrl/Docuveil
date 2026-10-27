@@ -16,6 +16,17 @@ Basic layer (build, cite, never claim): search, expiry reminders, YARA/oletools 
 ## Stack
 Flutter, SQLite (encrypted), ML Kit / Tesseract OCR, a PDF text library, FastAPI + PostgreSQL (metadata only), HMAC-SHA256.
 
+Storage: encrypted SQLite on the device, PostgreSQL on the server (metadata only). Details and tracks: `docs/WORK_SPLIT.md`. Extracted-document JSON: `docs/contracts/fields.md`.
+
+## Layout and ownership
+- `app/` Flutter UI (track A). `packages/engine/` pure-Dart engine (track B). `dataset/`, `server/`, `experiments/`, `paper/` (track C).
+- One owner per folder. Work on `<track>/<topic>` branches and merge by pull request, never straight to `main`.
+- Engine: `cd packages/engine && dart test`. Evaluation: `py -3.12 dataset/generate.py` then `dart run bin/evaluate.dart ../../dataset/generated`. Server: see `server/README.md`.
+
+## Progress
+- 2026-10-27: engine v0 (tamper compare, Indian name rules, audit, availability score, keyed fingerprints; 24 tests), dataset generator v0, relay server skeleton (in-memory store). Not done: app wiring, SQLite, OCR, PostgreSQL store, real baselines beyond SHA-256 / Jaro-Winkler.
+- The 100% scores from `bin/evaluate.dart` are on data from our own generator, so they only show the pipeline works. They are not paper results; the paper needs harder, independently designed cases and OCR noise.
+
 ## Hard rules
 - Synthetic data only. Never use real Aadhaar/PAN/passport documents.
 - Scope: 5 document types (Aadhaar-style ID, PAN-style card, marksheet, insurance policy, certificate), 2 platforms.
