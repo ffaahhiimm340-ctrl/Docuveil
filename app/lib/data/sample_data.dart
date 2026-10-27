@@ -1,8 +1,13 @@
+import 'package:docuveil_engine/docuveil_engine.dart' show DocType, ExtractedDoc;
+
 import '../models/models.dart';
 import '../theme/app_colors.dart';
+import 'copy_check.dart';
 
 // NOTE: rebuilt to match the screens (the original was never committed, see
 // PR #3). Everything here is synthetic: a fictional person, "Asha Verma".
+// Papers are not hand-written: each copy's fields go through the engine
+// (checkPaper), which decides what changed.
 
 /// Fictional content the screens show until they read the real vault.
 class SampleData {
@@ -14,114 +19,180 @@ class SampleData {
   static const _laptop = r'C:\Users\Asha\Documents\Docuveil';
   static const _drive = 'My Drive / Docuveil';
 
-  static PaperCopy _copy(
+  static CopySnapshot _copy(
     PlaceKind kind,
     String file,
-    CopyState state,
-  ) => switch (kind) {
-    PlaceKind.phone => PaperCopy(
-      kind: kind,
-      placeName: 'This phone',
-      path: '$_phone / $file',
-      state: state,
-    ),
-    PlaceKind.laptop => PaperCopy(
-      kind: kind,
-      placeName: "Asha's laptop",
-      path: '$_laptop\\$file',
-      state: state,
-    ),
-    PlaceKind.cloud => PaperCopy(
-      kind: kind,
-      placeName: 'Google Drive',
-      path: '$_drive / $file',
-      state: state,
-    ),
-  };
+    String sha,
+    ExtractedDoc doc, {
+    bool original = false,
+  }) => CopySnapshot(
+    kind: kind,
+    placeName: switch (kind) {
+      PlaceKind.phone => 'This phone',
+      PlaceKind.laptop => "Asha's laptop",
+      PlaceKind.cloud => 'Google Drive',
+    },
+    path: switch (kind) {
+      PlaceKind.phone => '$_phone / $file',
+      PlaceKind.laptop => '$_laptop\\$file',
+      PlaceKind.cloud => '$_drive / $file',
+    },
+    sha256: sha,
+    doc: doc,
+    original: original,
+  );
 
-  static final List<Paper> papers = [
-    Paper(
+  static ExtractedDoc _doc(String id, DocType t, Map<String, String> f) =>
+      ExtractedDoc(
+        id: id,
+        type: t,
+        fields: f,
+        text: 'SYNTHETIC SAMPLE ${f.entries.map((e) => '${e.key} ${e.value}').join(' ')}',
+      );
+
+  static final List<PaperSource> sources = [
+    PaperSource(
       id: 'marksheet',
       title: 'Marksheet, Semester 2',
       shortTitle: 'Marksheet',
-      status: PaperStatus.changed,
-      statusText: 'Changed: 1 detail',
-      brokenSegment: 3,
-      fields: const [
-        PaperField('Name', 'Asha Rajesh Verma'),
-        PaperField('Semester', '2'),
-        PaperField('Seat number', 'S482913'),
-        PaperField('CGPA, Semester 2', '9.40', was: '8.74'),
-      ],
+      labels: const {'cgpa': 'CGPA, Semester 2'},
       copies: [
-        _copy(PlaceKind.laptop, 'Marksheet_Sem2.pdf', CopyState.original),
-        _copy(PlaceKind.phone, 'Marksheet_Sem2.pdf', CopyState.same),
-        _copy(PlaceKind.cloud, 'Marksheet_Sem2.pdf', CopyState.changed),
+        _copy(
+          PlaceKind.laptop,
+          'Marksheet_Sem2.pdf',
+          'sha-marksheet-v1',
+          _doc('marksheet', DocType.marksheet, {
+            'name': 'Asha Rajesh Verma',
+            'semester': '2',
+            'seat_number': 'S482913',
+            'cgpa': '8.74',
+          }),
+          original: true,
+        ),
+        // Re-scanned on the phone: different file, same details.
+        _copy(
+          PlaceKind.phone,
+          'Marksheet_Sem2.pdf',
+          'sha-marksheet-rescan',
+          _doc('marksheet', DocType.marksheet, {
+            'name': 'ASHA RAJESH VERMA',
+            'semester': '2',
+            'seat_number': 'S482913',
+            'cgpa': '8.740',
+          }),
+        ),
+        // Edited on Google Drive.
+        _copy(
+          PlaceKind.cloud,
+          'Marksheet_Sem2.pdf',
+          'sha-marksheet-edited',
+          _doc('marksheet', DocType.marksheet, {
+            'name': 'Asha Rajesh Verma',
+            'semester': '2',
+            'seat_number': 'S482913',
+            'cgpa': '9.40',
+          }),
+        ),
       ],
     ),
-    Paper(
+    PaperSource(
       id: 'aadhaar',
       title: 'Aadhaar card',
       shortTitle: 'Aadhaar',
-      status: PaperStatus.safe,
-      statusText: 'Matches your original',
-      fields: const [
-        PaperField('Name', 'Asha R. Verma'),
-        PaperField('Date of birth', '04 Jul 2001'),
-        PaperField("Father's name", 'Rajesh Verma'),
-      ],
       copies: [
-        _copy(PlaceKind.phone, 'Aadhaar.pdf', CopyState.original),
-        _copy(PlaceKind.laptop, 'Aadhaar.pdf', CopyState.same),
+        for (final (kind, original) in [
+          (PlaceKind.phone, true),
+          (PlaceKind.laptop, false),
+        ])
+          _copy(
+            kind,
+            'Aadhaar.pdf',
+            'sha-aadhaar',
+            _doc('aadhaar', DocType.aadhaar, {
+              'name': 'Asha R. Verma',
+              'dob': '04 Jul 2001',
+              'father_name': 'Rajesh Verma',
+            }),
+            original: original,
+          ),
       ],
     ),
-    Paper(
+    PaperSource(
       id: 'pan',
       title: 'PAN card',
       shortTitle: 'PAN card',
-      status: PaperStatus.safe,
-      statusText: 'Matches your original',
-      fields: const [
-        PaperField('Name', 'Asha Rajesh Verma'),
-        PaperField('Date of birth', '04 Jul 2001'),
-        PaperField("Father's name", 'R Verma'),
-      ],
       copies: [
-        _copy(PlaceKind.laptop, 'PAN.pdf', CopyState.original),
-        _copy(PlaceKind.cloud, 'PAN.pdf', CopyState.same),
+        for (final (kind, original) in [
+          (PlaceKind.laptop, true),
+          (PlaceKind.cloud, false),
+        ])
+          _copy(
+            kind,
+            'PAN.pdf',
+            'sha-pan',
+            _doc('pan', DocType.pan, {
+              'name': 'Asha Rajesh Verma',
+              'dob': '04 Jul 2001',
+              'father_name': 'R Verma',
+            }),
+            original: original,
+          ),
       ],
     ),
-    Paper(
+    PaperSource(
       id: 'certificate',
       title: 'Degree certificate',
       shortTitle: 'Degree certificate',
       status: PaperStatus.look,
       statusText: 'Worth a look: one copy only',
       sealWarnSegment: 3,
-      fields: const [
-        PaperField('Name', 'Asha Rajesh Varma'),
-        PaperField('Degree', 'B.Sc. Computer Science'),
-        PaperField('Year', '2023'),
+      copies: [
+        _copy(
+          PlaceKind.laptop,
+          'Degree.pdf',
+          'sha-degree',
+          _doc('certificate', DocType.certificate, {
+            'name': 'Asha Rajesh Varma',
+            'degree': 'B.Sc. Computer Science',
+            'year': '2023',
+          }),
+          original: true,
+        ),
       ],
-      copies: [_copy(PlaceKind.laptop, 'Degree.pdf', CopyState.original)],
     ),
-    Paper(
+    PaperSource(
       id: 'insurance',
       title: 'Health insurance policy',
       shortTitle: 'Insurance',
-      status: PaperStatus.safe,
       statusText: 'Renews 12 Mar',
-      fields: const [
-        PaperField('Policy number', 'POL48291355'),
-        PaperField('Sum assured', '5,00,000'),
-        PaperField('Renewal date', '12 Mar 2027'),
-      ],
       copies: [
-        _copy(PlaceKind.phone, 'Insurance.pdf', CopyState.original),
-        _copy(PlaceKind.cloud, 'Insurance.pdf', CopyState.same),
+        _copy(
+          PlaceKind.phone,
+          'Insurance.pdf',
+          'sha-insurance',
+          _doc('insurance', DocType.insurance, {
+            'policy_number': 'POL48291355',
+            'sum_assured': '500000',
+            'renewal_date': '12/03/2027',
+          }),
+          original: true,
+        ),
+        // Exported again by the insurer's site: amount written differently.
+        _copy(
+          PlaceKind.cloud,
+          'Insurance.pdf',
+          'sha-insurance-export',
+          _doc('insurance', DocType.insurance, {
+            'policy_number': 'POL48291355',
+            'sum_assured': 'Rs. 5,00,000',
+            'renewal_date': '12 Mar 2027',
+          }),
+        ),
       ],
     ),
   ];
+
+  static final List<Paper> papers = [for (final s in sources) checkPaper(s)];
 
   static Paper paperById(String id) =>
       papers.firstWhere((p) => p.id == id, orElse: () => papers.first);

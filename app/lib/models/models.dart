@@ -17,20 +17,32 @@ extension PlaceKindX on PlaceKind {
   };
 }
 
-/// How one copy compares with the owner's saved original.
-enum CopyState { original, same, changed }
+/// How one copy compares with the owner's saved original. [review] means a
+/// detail reads differently in a way a re-scan could explain.
+enum CopyState { original, same, review, changed }
 
 extension CopyStateX on CopyState {
   String get label => switch (this) {
     CopyState.original => 'Original',
     CopyState.same => 'Same',
+    CopyState.review => 'Check',
     CopyState.changed => 'Changed',
   };
 
   Tone get tone => switch (this) {
     CopyState.original || CopyState.same => Tone.ok,
+    CopyState.review => Tone.look,
     CopyState.changed => Tone.bad,
   };
+}
+
+/// What the engine concluded about the most serious changed copy.
+class PaperVerdict {
+  const PaperVerdict(this.title, this.text, {this.tamper = true});
+
+  final String title;
+  final String text;
+  final bool tamper;
 }
 
 /// Overall state of a paper's seal.
@@ -81,6 +93,7 @@ class Paper {
     required this.copies,
     this.brokenSegment = 2,
     this.sealWarnSegment,
+    this.verdict,
   });
 
   final String id;
@@ -96,6 +109,9 @@ class Paper {
 
   /// Which piece turns amber when the paper is only "worth a look".
   final int? sealWarnSegment;
+
+  /// Set when a copy differs from the original.
+  final PaperVerdict? verdict;
 
   bool get hasChange => fields.any((f) => f.isChanged);
 
