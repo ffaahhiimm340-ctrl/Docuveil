@@ -43,10 +43,21 @@ String normalizeDate(String s) {
   return normalizeText(s);
 }
 
-/// `8.740` and `8.74` are the same number. Non-numbers fall back to text.
+/// The digits of an amount or number written the Indian way (`Rs. 10,00,000`,
+/// `₹1000000`), or null if [s] is not a plain number.
+String? _plainNumber(String s) {
+  final t = s
+      .trim()
+      .replaceFirst(RegExp(r'^(rs\.?|inr|₹)', caseSensitive: false), '')
+      .replaceAll(RegExp(r'[\s,]'), '');
+  return RegExp(r'^-?\d+(\.\d+)?$').hasMatch(t) ? t : null;
+}
+
+/// `8.740` and `8.74` are the same number; so are `10,00,000` and `1000000`.
+/// Non-numbers fall back to text.
 String normalizeNumber(String s) {
-  final t = s.trim().replaceAll(RegExp(r'\s'), '');
-  if (!RegExp(r'^-?\d+(\.\d+)?$').hasMatch(t)) return normalizeText(s);
+  final t = _plainNumber(s);
+  if (t == null) return normalizeText(s);
   if (!t.contains('.')) return t;
   return t.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
 }
@@ -74,10 +85,28 @@ String normalizeField(String key, String value) {
   if (key == 'dob' || key.endsWith('_date')) return normalizeDate(value);
   if (key == 'gender') return normalizeGender(value);
   if (key.endsWith('_number')) return normalizeIdNumber(value);
-  if (RegExp(r'^-?\d+(\.\d+)?$').hasMatch(value.trim())) {
-    return normalizeNumber(value);
-  }
+  if (_plainNumber(value) != null) return normalizeNumber(value);
   return normalizeText(value);
+}
+
+/// Pairs of characters OCR commonly confuses. Digit-to-digit is never here,
+/// so a changed digit is always a real change.
+const _ocrPairs = {
+  'o0', '0o', 'i1', '1i', 'l1', '1l', 'il', 'li', 's5', '5s', 'b8', '8b',
+  'z2', '2z', 'g6', '6g', 'ec', 'ce', 'uv', 'vu',
+};
+
+/// True if [a] and [b] (already normalised) differ only by up to two
+/// substitutions of OCR-confusable characters.
+bool ocrNear(String a, String b) {
+  if (a.length != b.length || a == b) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] == b[i]) continue;
+    if (!_ocrPairs.contains('${a[i]}${b[i]}')) return false;
+    if (++diff > 2) return false;
+  }
+  return true;
 }
 
 /// Human label for a field key: `father_name` -> `Father name`.

@@ -42,6 +42,7 @@ void tamperEval(String dir) {
       }
     } else {
       fn++;
+      print('  missed (${r.verdict.name}): ${c['label']['changed_fields']}');
     }
   }
   for (final c in harmless) {
@@ -120,9 +121,54 @@ void auditEval(String dir) {
   print('level accuracy (equivalent / likelyProblem / blocking): ${pct(levelOk, levelTotal)}');
 }
 
+/// Hard sets: where does each kind of change end up?
+void hardEval(String dir) {
+  final tPath = '$dir/tamper_hard.jsonl', hPath = '$dir/harmless_hard.jsonl';
+  if (!File(tPath).existsSync() || !File(hPath).existsSync()) return;
+  void breakdown(String title, List<Map<String, dynamic>> cases, {required bool tamper}) {
+    final bySub = <String, Map<String, int>>{};
+    for (final c in cases) {
+      final r = compareVersions(snap(c['baseline'], 1), snap(c['current'], 2));
+      final sub = c['label']['subtype'] as String;
+      final row = bySub.putIfAbsent(sub, () => {});
+      row[r.verdict.name] = (row[r.verdict.name] ?? 0) + 1;
+    }
+    print('\n== $title (${cases.length}) ==');
+    print('${'subtype'.padRight(26)} n    tampered  review  harmless  unchanged');
+    for (final e in (bySub.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))) {
+      final n = e.value.values.fold(0, (a, b) => a + b);
+      String col(String k) => (e.value[k] ?? 0).toString().padLeft(8);
+      print('${e.key.padRight(26)} ${n.toString().padRight(4)}${col('tampered')}${col('review')}${col('harmless')}${col('unchanged')}');
+    }
+  }
+
+  final tam = readJsonl(tPath), har = readJsonl(hPath);
+  breakdown('Hard tamper: want tampered (review = flagged for a look)', tam, tamper: true);
+  breakdown('Hard harmless: want harmless (tampered = false alarm)', har, tamper: false);
+  var missed = 0, flagged = 0, falseAlarm = 0, review = 0, rawDiffAlarm = 0;
+  for (final c in tam) {
+    final v = compareVersions(snap(c['baseline'], 1), snap(c['current'], 2)).verdict;
+    if (v == Verdict.tampered || v == Verdict.review) {
+      flagged++;
+    } else {
+      missed++;
+    }
+  }
+  for (final c in har) {
+    final v = compareVersions(snap(c['baseline'], 1), snap(c['current'], 2)).verdict;
+    if (v == Verdict.tampered) falseAlarm++;
+    if (v == Verdict.review) review++;
+    if (jsonEncode(c['baseline']['fields']) != jsonEncode(c['current']['fields'])) rawDiffAlarm++;
+  }
+  print('\nHard tamper caught (tampered or review): ${pct(flagged, tam.length)}, missed: ${pct(missed, tam.length)}');
+  print('Hard harmless: false alarm ${pct(falseAlarm, har.length)}, sent to review ${pct(review, har.length)}; '
+      'plain SHA-256 alarms on 100.0%, plain field-string diff on ${pct(rawDiffAlarm, har.length)}');
+}
+
 void main(List<String> args) {
   final dir = args.isEmpty ? '../../dataset/generated' : args.first;
   tamperEval(dir);
   auditEval(dir);
+  hardEval(dir);
 }
 
