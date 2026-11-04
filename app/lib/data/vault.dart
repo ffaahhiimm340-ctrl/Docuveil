@@ -99,8 +99,21 @@ class Vault {
 
   static final ValueNotifier<List<VaultDoc>> docs = ValueNotifier(demoDocs());
 
+  static VaultStore? _store;
+
+  /// Save a paper (to the attached store when there is one) and show it.
+  static Future<void> add(VaultDoc d) async {
+    await _store?.put(d);
+    docs.value = [
+      for (final x in docs.value)
+        if (x.doc.id != d.doc.id) x,
+      d,
+    ];
+  }
+
   /// Load from [store]; if it is empty, fill it with the demo papers.
   static Future<void> attach(VaultStore store) async {
+    _store = store;
     var stored = await store.all();
     if (stored.isEmpty) {
       for (final d in demoDocs()) {

@@ -1,6 +1,9 @@
+import 'package:docuveil_engine/docuveil_engine.dart' show DocType, fieldLabel;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/audit_rows.dart' show docTitle;
+import '../data/intake.dart';
 import '../models/models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -30,10 +33,31 @@ class _AddSourceScreenState extends State<AddSourceScreen> {
   ];
   String _type = 'Marksheet';
 
+  static const _docTypes = {
+    'Aadhaar-style ID': DocType.aadhaar,
+    'PAN-style card': DocType.pan,
+    'Marksheet': DocType.marksheet,
+    'Insurance policy': DocType.insurance,
+    'Certificate': DocType.certificate,
+  };
+
+  /// Pick a file, read it, and go to the check step.
+  Future<void> _pickFile() async {
+    final draft = await Intake.pickAndRead(_docTypes[_type]!);
+    if (draft != null && mounted) context.go('/add/check');
+  }
+
+  void _notYet(String what) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('$what is coming. For now, pick a PDF or text file on this device.'),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    Widget source(IconData icon, String title, String sub) => AppCard(
-      onTap: () => context.go('/add/check'),
+    Widget source(IconData icon, String title, String sub, VoidCallback onTap) => AppCard(
+      onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -82,21 +106,25 @@ class _AddSourceScreenState extends State<AddSourceScreen> {
           Icons.photo_camera_outlined,
           'Scan with the camera',
           'Best for paper you hold',
+          () => _notYet('Scanning with the camera'),
         ),
         source(
           Icons.smartphone_rounded,
-          'A file on this phone',
-          'Downloads, Documents, WhatsApp',
+          'A file on this device',
+          'PDF or text file: Downloads, Documents, WhatsApp',
+          _pickFile,
         ),
         source(
           Icons.cloud_outlined,
           'From Google Drive',
           'asha.verma@example.com',
+          () => _notYet('Adding from Google Drive'),
         ),
         source(
           Icons.laptop_rounded,
           "From Asha's laptop",
           'Online now, pick a folder',
+          () => _notYet('Adding from another device'),
         ),
       ],
     );
@@ -109,7 +137,14 @@ class AddCheckScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget field(String label, String value, {bool warn = false}) => Column(
+    final draft = Intake.current.value;
+    Widget field(
+      String label,
+      String value, {
+      bool warn = false,
+      String warnText = 'The scan was blurry here. Please check it.',
+      ValueChanged<String>? onChanged,
+    }) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: AppText.bodyBold),
@@ -119,6 +154,7 @@ class AddCheckScreen extends StatelessWidget {
             Expanded(
               child: TextFormField(
                 initialValue: value,
+                onChanged: onChanged,
                 style: AppText.t3.copyWith(fontWeight: FontWeight.w400),
                 decoration: warn
                     ? InputDecoration(
@@ -149,7 +185,7 @@ class AddCheckScreen extends StatelessWidget {
         if (warn) ...[
           const SizedBox(height: 4),
           Text(
-            'The scan was blurry here. Please check it.',
+            warnText,
             style: AppText.smallBold.copyWith(color: AppColors.warn),
           ),
         ],
@@ -163,7 +199,10 @@ class AddCheckScreen extends StatelessWidget {
       bottom: [
         AppButton.primary(
           'Looks right, save it',
-          onPressed: () => context.go('/add/saved'),
+          onPressed: () async {
+            if (draft != null) await Intake.save(draft);
+            if (context.mounted) context.go('/add/saved');
+          },
         ),
         AppButton.text('Scan again', onPressed: () => context.go('/add')),
       ],
@@ -189,8 +228,13 @@ class AddCheckScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Marksheet, Semester 2', style: AppText.t3),
-                    const PathText('Phone / Download / Marksheet_Sem2.pdf'),
+                    Text(
+                      draft == null ? 'Marksheet, Semester 2' : docTitle(draft.type),
+                      style: AppText.t3,
+                    ),
+                    PathText(
+                      draft?.fileName ?? 'Phone / Download / Marksheet_Sem2.pdf',
+                    ),
                   ],
                 ),
               ),
@@ -202,10 +246,26 @@ class AddCheckScreen extends StatelessWidget {
           'Fix anything that looks wrong. This becomes your trusted original.',
           style: AppText.sub,
         ),
-        field('Student name', 'Asha Rajesh Verma'),
-        field('Date of birth', '14 Jul 2001'),
-        field('Roll number', 'MCA23-0412'),
-        field('CGPA, Semester 2', '8.74', warn: true),
+        if (draft?.problem != null)
+          InfoBanner(
+            tone: Tone.look,
+            child: Text(draft!.problem!, style: AppText.body),
+          ),
+        if (draft == null) ...[
+          // Example shown before any file is picked (design demo).
+          field('Student name', 'Asha Rajesh Verma'),
+          field('Date of birth', '14 Jul 2001'),
+          field('Roll number', 'MCA23-0412'),
+          field('CGPA, Semester 2', '8.74', warn: true),
+        ] else
+          for (final k in draft.fields.keys)
+            field(
+              fieldLabel(k),
+              draft.fields[k]!,
+              warn: draft.unread.contains(k),
+              warnText: 'We could not read this. Please type it.',
+              onChanged: (v) => draft.fields[k] = v,
+            ),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -313,7 +373,8 @@ class _AddSavedScreenState extends State<AddSavedScreen> {
               style: AppText.t0,
             ),
             Text(
-              'Marksheet, Semester 2. From now on we watch every copy.',
+              '${Intake.current.value == null ? 'Marksheet, Semester 2' : docTitle(Intake.current.value!.type)}. '
+              'From now on we watch every copy.',
               textAlign: TextAlign.center,
               style: AppText.sub,
             ),
