@@ -49,7 +49,7 @@ class _AddSourceScreenState extends State<AddSourceScreen> {
 
   void _notYet(String what) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text('$what is coming. For now, pick a PDF or text file on this device.'),
+      content: Text('$what is coming. For now, pick a file on this device.'),
       behavior: SnackBarBehavior.floating,
     ),
   );
@@ -111,7 +111,7 @@ class _AddSourceScreenState extends State<AddSourceScreen> {
         source(
           Icons.smartphone_rounded,
           'A file on this device',
-          'PDF or text file: Downloads, Documents, WhatsApp',
+          'PDF, photo or text file: Downloads, Documents, WhatsApp',
           _pickFile,
         ),
         source(
@@ -262,6 +262,14 @@ class AddCheckScreen extends StatelessWidget {
             tone: Tone.look,
             child: Text(
               'This file has an ID number and is in a folder other people may be able to open.',
+              style: AppText.body,
+            ),
+          ),
+        if (draft != null && draft.fromScan)
+          InfoBanner(
+            tone: Tone.look,
+            child: Text(
+              'We read this from a picture, which can cause mistakes. Check every detail: this becomes your trusted original.',
               style: AppText.body,
             ),
           ),

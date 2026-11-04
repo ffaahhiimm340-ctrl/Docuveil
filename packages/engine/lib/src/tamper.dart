@@ -132,7 +132,7 @@ ChangeReport compareVersions(
           ChangeKind.modified,
           x,
           y,
-          possibleOcr: ocrNear(normalizeField(key, x), normalizeField(key, y)),
+          possibleOcr: ocrNearRaw(key, x, y),
         ),
       );
     } else if (x != y) {

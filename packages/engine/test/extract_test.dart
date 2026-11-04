@@ -111,6 +111,50 @@ PassportNo.W6669725''');
     expect(normalizeField('sum_assured', i['sum_assured']!), '1000000');
   });
 
+  test('as Windows OCR prints things: split amounts, odd dashes, misread numerals', () {
+    final i = extractFields(DocType.insurance, 'X\nSum Assured Rs. 1, 000, 000');
+    expect(normalizeField('sum_assured', i['sum_assured']!), '1000000');
+    final p = extractFields(DocType.pan, 'Date of Birth\n4\uFFFD6\u20131996');
+    expect(normalizeField('dob', p['dob']!), '1996-06-04');
+    final m = extractFields(DocType.marksheet, 'Semester : JJ\nName : A B');
+    expect(m['semester'], '2');
+    final s = extractFields(DocType.passport, 'Passport No. Fli56527');
+    expect(normalizeField('id_number', s['id_number']!), normalizeField('id_number', 'F1156527'));
+  });
+
+  test('the letter s of a garbled Rs is not taken as an amount', () {
+    final i = extractFields(DocType.insurance, 'X\nSum Assured : Rs');
+    expect(i.containsKey('sum_assured'), isFalse);
+  });
+
+  test('labels as Windows OCR misreads or spaces them', () {
+    final p = extractFields(DocType.passport, 'Surname\nNAIR\nGiven Name (s)\nKAVYA PRASAD');
+    expect(p['name'], 'KAVYA PRASAD NAIR');
+    final m = extractFields(DocType.marksheet, 'Date ofBinh - 27/01/1997');
+    expect(normalizeField('dob', m['dob']!), '1997-01-27');
+  });
+
+  test('look-alike letters in names go to review, a different letter does not', () {
+    Verdict v(String x, String y) => compareVersions(
+      DocSnapshot('a', ExtractedDoc(id: 'n', type: DocType.pan, fields: {'name': x})),
+      DocSnapshot('b', ExtractedDoc(id: 'n', type: DocType.pan, fields: {'name': y})),
+    ).verdict;
+    for (final (x, y) in [('Asha Iyer', 'Asha Jyer'), ('Asha lyer', 'Asha tyer'), ('Asha lyer', 'Asha (yer')]) {
+      expect(v(x, y), Verdict.review, reason: '$x / $y');
+    }
+    expect(v('Asha Iyer', 'Asha Oyer'), Verdict.tampered);
+    expect(v('Asha Verma', 'Asha Sharma'), Verdict.tampered);
+  });
+
+  test('a value the owner typed in, unread on a later scan, asks for a look', () {
+    final r = compareVersions(
+      DocSnapshot('a', ExtractedDoc(id: 'i', type: DocType.insurance, fields: const {'sum_assured': '500000'})),
+      DocSnapshot('b', ExtractedDoc(id: 'i', type: DocType.insurance, fields: const {})),
+    );
+    expect(r.verdict, Verdict.review);
+    expect(r.summary(), contains('could not be read'));
+  });
+
   test('a real decimal in an amount is kept', () {
     final i = extractFields(DocType.insurance, 'X\nSum Insured : 5000.50');
     expect(normalizeField('sum_assured', i['sum_assured']!), '5000.5');

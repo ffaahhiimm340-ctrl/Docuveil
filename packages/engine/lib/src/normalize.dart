@@ -21,7 +21,8 @@ String _iso(int y, int m, int d) {
 /// Canonical `yyyy-mm-dd`. Numeric dates are read day-first (Indian
 /// convention). Unrecognised input falls back to [normalizeText].
 String normalizeDate(String s) {
-  final t = s.trim();
+  // Dash-like characters, and the one a garbled OCR dash decodes to.
+  final t = s.trim().replaceAll(RegExp('[\u2013\u2014\uFFFD]'), '-');
   var m = RegExp(r'^(\d{1,2})[/\-. ](\d{1,2})[/\-. ](\d{4})$').firstMatch(t);
   if (m != null) {
     final r = _iso(int.parse(m[3]!), int.parse(m[2]!), int.parse(m[1]!));
@@ -98,7 +99,19 @@ String normalizeField(String key, String value) {
 const _ocrPairs = {
   'o0', '0o', 'i1', '1i', 'l1', '1l', 'il', 'li', 's5', '5s', 'b8', '8b',
   'z2', '2z', 'g6', '6g', 'ec', 'ce', 'uv', 'vu',
+  'ij', 'ji', 'lj', 'jl', 'it', 'ti', 'lt', 'tl',
 };
+
+/// Punctuation OCR prints for a thin letter, seen before normalising.
+final _thinMarks = RegExp(r'[(){}\[\]|!]');
+
+/// True if the two printed values differ only in ways a scan could explain.
+bool ocrNearRaw(String key, String a, String b) {
+  String fold(String s) => normalizeField(key, s.replaceAll(_thinMarks, 'l'));
+  return ocrNear(normalizeField(key, a), normalizeField(key, b)) ||
+      fold(a) == fold(b) ||
+      ocrNear(fold(a), fold(b));
+}
 
 /// True if [a] and [b] (already normalised) differ only by up to two
 /// substitutions of OCR-confusable characters.

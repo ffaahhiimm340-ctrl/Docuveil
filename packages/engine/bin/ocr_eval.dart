@@ -30,11 +30,6 @@ void main(List<String> args) {
     fields: extractFields(typeOf(r), r['text'] as String),
     text: r['text'] as String,
   );
-  ChangeReport compare(Map<String, dynamic> a, Map<String, dynamic> b) => compareVersions(
-    DocSnapshot.fromBytes(Uint8List.fromList([1]), read(a)),
-    DocSnapshot.fromBytes(Uint8List.fromList([2]), read(b)),
-  );
-
   // 1. Field accuracy on the original scans.
   final ok = <String, int>{}, total = <String, int>{};
   final misses = <String, String>{};
@@ -60,43 +55,68 @@ void main(List<String> args) {
     print('  $k ${pct(ok[k] ?? 0, total[k]!)}   e.g. ${misses[k] ?? ''}');
   }
 
-  // 2. Unchanged document scanned twice: must not be called tampered.
-  final re = <Verdict, int>{};
-  var textDiff = 0;
-  final falseAlarms = <String>[];
-  for (final v in docs.values) {
-    final r = compare(v['original']!, v['rescan']!);
-    re[r.verdict] = (re[r.verdict] ?? 0) + 1;
-    if (v['original']!['text'] != v['rescan']!['text']) textDiff++;
-    if (r.verdict == Verdict.tampered && falseAlarms.length < 5) {
-      falseAlarms.add('${v['original']!['doc_type']}: ${r.summary()}');
-    }
-  }
-  print('\nunchanged, scanned twice -> ${Verdict.values.map((x) => '${x.name} ${pct(re[x] ?? 0, docs.length)}').join(', ')}');
-  print('  baselines: plain SHA-256 alarms on 100.0%, plain OCR-text diff on ${pct(textDiff, docs.length)}');
-  for (final a in falseAlarms) {
-    print('  false alarm: $a');
-  }
+  // The app asks the owner to correct what was misread and type what was not
+  // read when adding a paper. "confirmed" simulates a careful owner doing so;
+  // "as read" trusts the OCR of the first scan, as a careless owner would.
+  ExtractedDoc confirmed(Map<String, dynamic> r) => ExtractedDoc(
+    id: r['id'] as String,
+    type: typeOf(r),
+    fields: Map<String, String>.from(r['fields'] as Map),
+    text: r['text'] as String,
+  );
+  ChangeReport compareWith(ExtractedDoc base, Map<String, dynamic> b) => compareVersions(
+    DocSnapshot.fromBytes(Uint8List.fromList([1]), base),
+    DocSnapshot.fromBytes(Uint8List.fromList([2]), read(b)),
+  );
 
-  // 3. One digit edited, then scanned: must be caught, ideally naming the field.
-  final ed = <Verdict, int>{};
-  var edits = 0, named = 0;
-  final missed = <String>[];
+  String line(Map<Verdict, int> c, int n) =>
+      Verdict.values.map((x) => '${x.name} ${pct(c[x] ?? 0, n)}').join(', ');
+
+  var textDiff = 0;
   for (final v in docs.values) {
-    final e = v['edited'];
-    if (e == null) continue;
-    edits++;
-    final r = compare(v['original']!, e);
-    ed[r.verdict] = (ed[r.verdict] ?? 0) + 1;
-    final field = (e['edit'] as Map)['field'] as String;
-    if (r.changes.any((c) => c.field == field)) named++;
-    if (r.verdict != Verdict.tampered && r.verdict != Verdict.review && missed.length < 5) {
-      missed.add('${e['doc_type']}.$field ${(e['edit'] as Map)['old']} -> ${(e['edit'] as Map)['new']}');
-    }
+    if (v['original']!['text'] != v['rescan']!['text']) textDiff++;
   }
-  print('\none digit edited, then scanned ($edits) -> ${Verdict.values.map((x) => '${x.name} ${pct(ed[x] ?? 0, edits)}').join(', ')}');
-  print('  edited field named in the report: ${pct(named, edits)}');
-  for (final m in missed) {
-    print('  missed: $m');
+  print('\nbaselines on unchanged re-scans: plain SHA-256 alarms on 100.0%, plain OCR-text diff on ${pct(textDiff, docs.length)}');
+
+  for (final mode in ['as read', 'confirmed']) {
+    ExtractedDoc baseOf(Map<String, dynamic> r) => mode == 'confirmed' ? confirmed(r) : read(r);
+
+    // Unchanged document scanned twice: must not be called tampered.
+    final re = <Verdict, int>{};
+    final falseAlarms = <String>[];
+    for (final v in docs.values) {
+      final r = compareWith(baseOf(v['original']!), v['rescan']!);
+      re[r.verdict] = (re[r.verdict] ?? 0) + 1;
+      if (r.verdict == Verdict.tampered && falseAlarms.length < 6) {
+        falseAlarms.add('${v['original']!['doc_type']}: ${r.summary()}');
+      }
+    }
+    print('\n--- baseline $mode ---');
+    print('unchanged, scanned twice -> ${line(re, docs.length)}');
+    for (final a in falseAlarms) {
+      print('  false alarm: $a');
+    }
+
+    // One digit edited, then scanned: must be flagged, ideally naming the field.
+    final ed = <Verdict, int>{};
+    var edits = 0, named = 0;
+    final missed = <String>[];
+    for (final v in docs.values) {
+      final e = v['edited'];
+      if (e == null) continue;
+      edits++;
+      final r = compareWith(baseOf(v['original']!), e);
+      ed[r.verdict] = (ed[r.verdict] ?? 0) + 1;
+      final field = (e['edit'] as Map)['field'] as String;
+      if (r.changes.any((c) => c.field == field)) named++;
+      if (r.verdict != Verdict.tampered && r.verdict != Verdict.review && missed.length < 6) {
+        missed.add('${e['doc_type']}.$field ${(e['edit'] as Map)['old']} -> ${(e['edit'] as Map)['new']}');
+      }
+    }
+    print('one digit edited, then scanned ($edits) -> ${line(ed, edits)}');
+    print('  edited field named in the report: ${pct(named, edits)}');
+    for (final m in missed) {
+      print('  missed: $m');
+    }
   }
 }

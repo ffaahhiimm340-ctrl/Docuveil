@@ -1,5 +1,15 @@
 import 'models.dart';
 
+/// The fields a paper of each type should have.
+const expectedFields = {
+  DocType.aadhaar: ['name', 'dob', 'gender', 'father_name', 'id_number'],
+  DocType.pan: ['name', 'dob', 'father_name', 'id_number'],
+  DocType.marksheet: ['name', 'dob', 'seat_number', 'semester', 'cgpa'],
+  DocType.insurance: ['name', 'policy_number', 'sum_assured', 'expiry_date', 'nominee'],
+  DocType.certificate: ['name', 'degree', 'year'],
+  DocType.passport: ['name', 'dob', 'gender', 'father_name', 'id_number', 'expiry_date'],
+};
+
 /// Reads the fields the engine compares from a document's text (from a PDF
 /// text layer or OCR). Rule-based, per document type, line by line.
 ///
@@ -31,17 +41,17 @@ Map<String, String> extractFields(DocType type, String text) {
       put('id_number', x.find(_panNo));
       put('name', x.valueOf(_label(r'name'), exclude: _label(r"father'?s? ?name")));
       put('father_name', x.valueOf(_label(r"father'?s? ?name")));
-      put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
+      put('dob', x.valueOf(_label(r'date of b[a-z]*'), pattern: _date));
     case DocType.marksheet:
       put('name', x.valueOf(_label(r'(name of the student|student name|name)', glued: true)));
       put('seat_number', x.valueOf(_label(r'(seat no\.?|seat number|roll no\.?)', glued: true)));
       put('semester', _semester(x.valueOf(_label(r'semester', glued: true))));
-      put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
+      put('dob', x.valueOf(_label(r'date of b[a-z]*'), pattern: _date));
       put('cgpa', x.valueOf(_label(r'(sgpa\s*/\s*cgpa|cumulative gpa|cgpa)'), pattern: _gpa));
       if (lines.isNotEmpty) put('university', _titleCase(lines.first));
     case DocType.passport:
       final surname = x.valueOf(_label(r'surname'));
-      final given = x.valueOf(_label(r'given name\(?s?\)?'));
+      final given = x.valueOf(_label(r'given name( \(?s\)?)?'));
       if (surname != null || given != null) {
         put('name', [given, surname].whereType<String>().join(' '));
       }
@@ -49,7 +59,7 @@ Map<String, String> extractFields(DocType type, String text) {
         'gender',
         x.find(_sexLine) ?? x.valueOf(_label(r'sex'), pattern: RegExp(r'\b[MFX]\b')),
       );
-      put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
+      put('dob', x.valueOf(_label(r'date of b[a-z]*'), pattern: _date));
       put('id_number', x.valueOf(_label(r'passport no\.?'), pattern: _passportNo));
       put('expiry_date', x.valueOf(_label(r'date of expiry'), pattern: _date));
       put('father_name', x.valueOf(_label(r'name of father( / legal guardian)?')));
@@ -79,25 +89,26 @@ Map<String, String> extractFields(DocType type, String text) {
 /// Undo letter-for-digit confusions in a string that should be numeric.
 String _digits(String s) => s
     .replaceAll(RegExp('[Oo]'), '0')
-    .replaceAll(RegExp('[Il|]'), '1')
+    .replaceAll(RegExp('[Iil|]'), '1')
     .replaceAll('S', '5')
     .replaceAll('B', '8');
 
 // --- patterns ---------------------------------------------------------------
 
-const _d = '[0-9OoIl|SB]'; // a digit, or a letter OCR prints for one
+const _d = '[0-9OoIil|SB]'; // a digit, or a letter OCR prints for one
 // Numbers are bounded by "not a digit" rather than \b, because OCR that drops
 // spaces glues them to the label ("DateofBirth17Oct1993").
 const _nd = '(?<![0-9])', _ndAfter = '(?![0-9])';
+const _sep = '[/\\-.\u2013\u2014\uFFFD]'; // dash-like, or a character OCR garbled
 final _date = RegExp(
-  '$_nd($_d{1,2}[/\\-.]$_d{1,2}[/\\-.]$_d{4}|$_d{1,2} ?[A-Za-z]{3,9} ?$_d{4})$_ndAfter',
+  '$_nd($_d{1,2}$_sep$_d{1,2}$_sep$_d{4}|$_d{1,2} ?[A-Za-z]{3,9} ?$_d{4})$_ndAfter',
 );
 final _gpa = RegExp('$_nd$_d{1,2}\\.$_d{1,2}$_ndAfter');
 final _aadhaarNo = RegExp('$_nd$_d{4} ?$_d{4} ?$_d{4}$_ndAfter');
 final _panNo = RegExp(r'\b[A-Z]{5}[0-9OIlSB]{4}[A-Z]\b');
 final _passportNo = RegExp('[A-Z]$_d{7}$_ndAfter');
 final _sexLine = RegExp(r'^sex\s*[:\-]?\s*([MFX])$', caseSensitive: false);
-final _amount = RegExp(r'((rs\.?|inr|₹)\s*)?[0-9OoIlSB][0-9OoIlSB,.]*', caseSensitive: false);
+final _amount = RegExp(r'(([Rr][Ss]\.?|INR|inr|₹)\s*)?[0-9OoIlSB](?:[ ,.]*[0-9OoIlSB])*');
 final _gender = RegExp(r'^(male|female|transgender)$', caseSensitive: false);
 final _relation = RegExp(r'^(s|d|c|w)\s*/\s*o\s*:?\s*([^,]+)', caseSensitive: false);
 
@@ -122,10 +133,14 @@ const _looksLike = {
 /// that could be the start of a longer word.
 RegExp _label(String body, {bool glued = false}) {
   final out = StringBuffer('^');
+  var inRange = false; // inside [...], letters are not expanded
   for (var i = 0; i < body.length; i++) {
     final c = body[i];
     final escaped = i > 0 && body[i - 1] == '\\';
-    if (!escaped && c == ' ') {
+    if (!escaped && (c == '[' || c == ']')) inRange = c == '[';
+    if (inRange || c == ']') {
+      out.write(c);
+    } else if (!escaped && c == ' ') {
       out.write(r'\s*'); // some OCR models drop the spaces between words
     } else {
       out.write(!escaped && _looksLike.containsKey(c) ? _looksLike[c] : c);
@@ -157,7 +172,7 @@ String? _clean(String? v, RegExp? pattern) {
     final prefix = RegExp(r'^((rs\.?|inr|₹)\s*)', caseSensitive: false).firstMatch(s)?.group(0) ?? '';
     // A "." that separates digit groups is a misread "," ("10,00.000"); only
     // a final "." with one or two digits after it is a decimal point.
-    final body = _digits(s.substring(prefix.length))
+    final body = _digits(s.substring(prefix.length).replaceAll(' ', ''))
         .replaceAll(RegExp(r'\.(?=\d{3}|\d{2}[,.])'), ',')
         .replaceAll(RegExp(r'[,.]$'), '');
     return prefix + body;
@@ -173,7 +188,7 @@ String? _nameOnly(String line) =>
 String? _semester(String? v) {
   if (v == null) return null;
   const roman = {'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5', 'VI': '6', 'VII': '7', 'VIII': '8'};
-  final t = v.trim().toUpperCase().replaceAll('L', 'I').replaceAll('1', 'I');
+  final t = v.trim().toUpperCase().replaceAll(RegExp('[L1J|]'), 'I');
   if (roman.containsKey(t)) return roman[t];
   final n = _digits(v.trim());
   return RegExp(r'^\d+$').hasMatch(n) ? n : v.trim();
@@ -209,7 +224,7 @@ class _Lines {
       if (exclude != null && _labelEnd(exclude, i) != null) continue;
       final rest = lines[i]
           .substring(end)
-          .replaceFirst(RegExp(r'^[\s:\-.]*'), '');
+          .replaceFirst(RegExp('^[\\s:\\-.\u2013\u2014]*'), '');
       final v = rest.isNotEmpty ? rest : (i + 1 < lines.length ? lines[i + 1] : null);
       final c = _clean(v, pattern);
       if (c != null) return c;

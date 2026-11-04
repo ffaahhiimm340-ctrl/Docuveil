@@ -5,7 +5,6 @@ import 'package:docuveil_engine/relay.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import 'intake.dart' show expectedFields;
 import 'pin_lock.dart' show MemoryPinStore, PinStore;
 import 'vault.dart';
 

@@ -6,19 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'ocr_service.dart';
 import 'safety_center.dart';
 import 'vault.dart';
-
-/// The fields a paper of each type should have; anything the extractor did
-/// not find is shown empty for the owner to type.
-const expectedFields = {
-  DocType.aadhaar: ['name', 'dob', 'gender', 'father_name', 'id_number'],
-  DocType.pan: ['name', 'dob', 'father_name', 'id_number'],
-  DocType.marksheet: ['name', 'dob', 'seat_number', 'semester', 'cgpa'],
-  DocType.insurance: ['name', 'policy_number', 'sum_assured', 'expiry_date', 'nominee'],
-  DocType.certificate: ['name', 'degree', 'year'],
-  DocType.passport: ['name', 'dob', 'gender', 'father_name', 'id_number', 'expiry_date'],
-};
 
 /// A paper read from a file, before the owner confirms it as the original.
 class IntakeDraft {
@@ -48,6 +38,9 @@ class IntakeDraft {
 
   /// Safety checks run on the picked file.
   FileReport? safety;
+
+  /// The text came from OCR, so it is more likely to contain mistakes.
+  bool fromScan = false;
 }
 
 /// Build a draft from a file's bytes and its text. Pure, so it is testable.
@@ -95,22 +88,57 @@ class Intake {
     if (f == null) return null;
     final bytes = await f.readAsBytes();
     final ext = f.extension?.toLowerCase();
-    IntakeDraft draft;
-    if (ext == 'pdf' || ext == 'txt') {
-      final text = ext == 'pdf' ? await pdfText(bytes) : utf8.decode(bytes, allowMalformed: true);
-      draft = draftFromText(type, f.name, bytes, text);
-      if (text.trim().isEmpty) {
-        draft = _problem(draft, 'This PDF has no text layer (it is a scan). Reading scans is coming; please type the details.');
-      }
-    } else {
-      draft = _problem(
-        draftFromText(type, f.name, bytes, ''),
-        'Reading photos needs on-device OCR, which is coming. Please type the details.',
-      );
-    }
+    final draft = await readBytes(type, f.name, ext ?? '', bytes, OcrEngine.forPlatform());
     draft.safety = SafetyLog.check(f.name, f.path, bytes, draft.text);
     current.value = draft;
     return draft;
+  }
+
+  /// Read a file's bytes into a draft: its text layer when it has one, else
+  /// OCR. A file that cannot be read still gives a draft, for typing by hand.
+  static Future<IntakeDraft> readBytes(
+    DocType type,
+    String name,
+    String ext,
+    Uint8List bytes,
+    OcrEngine? ocr,
+  ) async {
+    Future<IntakeDraft> viaOcr(Future<String> Function(OcrEngine) read) async {
+      if (ocr == null) {
+        return _problem(
+          draftFromText(type, name, bytes, ''),
+          'This device cannot read scans yet. Please type the details.',
+        );
+      }
+      try {
+        final text = await read(ocr);
+        if (text.trim().isEmpty) {
+          return _problem(
+            draftFromText(type, name, bytes, ''),
+            'We could not find any text in this file. Please type the details.',
+          );
+        }
+        final d = draftFromText(type, name, bytes, text);
+        d.fromScan = true;
+        return d;
+      } catch (e) {
+        debugPrint('OCR failed: $e');
+        return _problem(
+          draftFromText(type, name, bytes, ''),
+          'We could not read this scan. Please type the details.',
+        );
+      }
+    }
+
+    if (ext == 'txt') {
+      return draftFromText(type, name, bytes, utf8.decode(bytes, allowMalformed: true));
+    }
+    if (ext == 'pdf') {
+      final text = await pdfText(bytes);
+      if (text.trim().isNotEmpty) return draftFromText(type, name, bytes, text);
+      return viaOcr((e) => ocrPdf(e, bytes));
+    }
+    return viaOcr((e) => ocrBytes(e, bytes, ext));
   }
 
   static IntakeDraft _problem(IntakeDraft d, String why) => IntakeDraft(

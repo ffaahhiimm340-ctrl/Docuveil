@@ -10,7 +10,7 @@
 
 ## Abstract
 
-People keep copies of important documents on several devices and cloud accounts, yet they have no simple way to learn whether a copy has been altered, or whether their documents agree with each other before they apply for a service. Existing integrity methods depend on the issuer, judge a single image without an original, or serve a verifier such as a lender. We present an owner-side system in which an individual's app records a baseline of each document's fields when it is first added, then reports which named field later changed, with old and new values, and separates harmless changes such as re-scans from likely tampering. The same field extraction drives a pre-application audit that compares name, date of birth and gender across the owner's documents using common Indian naming conventions and advises which document to correct. Alerts are coordinated across the owner's devices with keyed fingerprints relayed by a server that cannot read documents. On a synthetic benchmark using rendered, scan-like images and a real OCR engine, [PRELIMINARY: 98.9% of fields were read correctly, 3% of unchanged re-scans were wrongly flagged as tampered against 100% for plain SHA-256, and all one-digit edits were detected]. [TO RUN: final results and the user ranking study.]
+People keep copies of important documents on several devices and cloud accounts, yet they have no simple way to learn whether a copy has been altered, or whether their documents agree with each other before they apply for a service. Existing integrity methods depend on the issuer, judge a single image without an original, or serve a verifier such as a lender. We present an owner-side system in which an individual's app records a baseline of each document's fields when it is first added, then reports which named field later changed, with old and new values, and separates harmless changes such as re-scans from likely tampering. The same field extraction drives a pre-application audit that compares name, date of birth and gender across the owner's documents using common Indian naming conventions and advises which document to correct. Alerts are coordinated across the owner's devices with keyed fingerprints relayed by a server that cannot read documents. On a synthetic benchmark using rendered, scan-like images and a real OCR engine, [PRELIMINARY: 95.0% of fields were read correctly; with an owner-confirmed baseline, 1.7% of unchanged re-scans were wrongly flagged as tampered, against 100% for plain SHA-256, and none of 120 one-digit edits went unflagged]. [TO RUN: final results and the user ranking study.]
 
 ## I. Introduction
 
@@ -46,7 +46,7 @@ The system is a Flutter application for Windows and Android, with a thin relay s
 - **Sync.** Devices exchange keyed fingerprints through the relay (Section VI).
 - **Basic layer (cited, not claimed).** Search, renewal reminders, a static check for macros and scripts, decoy-based ransomware warnings on Windows, and warnings for ID numbers in shared-looking folders.
 
-[TO DO: architecture figure. Note honestly at submission time which parts are implemented: encrypted storage and camera OCR are not built yet.]
+[TO DO: architecture figure. Note honestly at submission time which parts are implemented and tested. Vault records are encrypted with a key in secure storage, not as a whole database. Camera capture is not built, and nothing has run on an Android device yet.]
 
 ## IV. Field-Level Tamper Detection
 
@@ -86,18 +86,29 @@ Each document gets a score from its number of copies, backup recency and integri
 
 **Data.** All documents are synthetic; no real identity documents were used. [TO DO: final dataset description, including size. The plan calls for 150-200 base documents and about 50 synthetic people with 4-5 documents each.]
 
-**Scanned images.** Documents are rendered in four fonts with tilt, blur, reduced resolution and JPEG compression, and read with RapidOCR. [TO RUN: printed and photographed documents across several phones, which is the most important remaining experiment.]
+**Scanned images.** Documents are rendered in four fonts with tilt, blur, reduced resolution and JPEG compression, and read with the OCR built into Windows, which the Windows app uses. [TO RUN: printed and photographed documents across several phones, which is the most important remaining experiment; ML Kit on Android.]
+
+**Method.** Each batch is used once. The engine was frozen before the batch below ran; earlier batches were used for development, and each exposed problems the previous one had not.
 
 ### Results on a held-out batch [PRELIMINARY]
 
-100 documents and 300 scans, not seen while the engine was being tuned.
+120 documents and 360 scans, not seen during development. The app asks the owner to correct the fields of the first scan, so a *confirmed* baseline is the intended use; *as read* trusts the first scan's OCR, as a careless owner would.
 
-| Measure | Docuveil | Plain SHA-256 | Plain OCR-text diff |
+| Unchanged document, scanned twice | Harmless | Review | False "tampered" |
 |---|---|---|---|
-| Unchanged re-scan flagged as tampered | 3% (6% more sent to review) | 100% | 89% |
-| One-digit edit flagged as tampered | 100% | [TO RUN] | [TO RUN] |
+| Docuveil, confirmed baseline | 72.5% | 25.8% | 1.7% |
+| Docuveil, baseline as read | 76.7% | 20.0% | 3.3% |
+| Plain SHA-256 | - | - | 100% |
+| Plain OCR-text diff | - | - | 49.2% |
 
-Fields read correctly: 98.9%. The edited field was named in 100% of the edit cases. Observed false alarms came from an amount cut short, a label fragment read as a name, and a full-width comma that left part of an address in a name. The engine has since changed, so these numbers must be re-measured on a new batch.
+| One digit edited, then scanned | Tampered | Review | Missed |
+|---|---|---|---|
+| Docuveil, confirmed baseline | 96.7% | 3.3% | 0% |
+| Docuveil, baseline as read | 94.2% | 5.0% | 0.8% (1 of 120) |
+
+Fields read correctly: 95.0%; the weakest was the insured amount at 70.0%. With a confirmed baseline, the edited field was named in 97.5% of edit cases. The single miss occurred because the OCR dropped a comma-grouped amount on both copies, so the field was never compared; this is why the owner's confirmation step matters. About a quarter of harmless re-scans ask the owner to look, which is the main cost of the design and needs testing with users. [TO RUN: confidence intervals; with 120 documents these are wide.]
+
+Development also showed that small samples mislead: a batch on the same engine with a different OCR moved false alarms from 3% to 13.3%, because Windows OCR returned the pieces of wide lines out of order. Rebuilding lines from word positions fixed most of that.
 
 ### Consistency audit [PRELIMINARY]
 

@@ -1,5 +1,6 @@
 import 'package:docuveil/data/audit_rows.dart';
 import 'package:docuveil/data/vault.dart';
+import 'package:docuveil/data/vault_cipher.dart';
 import 'package:docuveil_engine/docuveil_engine.dart' show AuditPurpose;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -22,6 +23,7 @@ void main() {
   test('SQLite store round-trips documents and seeds the demo vault once', () async {
     final store = await SqliteVaultStore.open(
       inMemoryDatabasePath,
+      cipher: VaultCipher.random(),
       factory: databaseFactoryFfi,
     );
     await Vault.attach(store);
