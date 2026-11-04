@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/pin_lock.dart';
 import '../data/sample_data.dart';
 import '../models/models.dart';
 import '../theme/app_colors.dart';
@@ -115,7 +116,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppButton.text(
           'Lock the vault now',
           danger: true,
-          onPressed: () => context.go('/unlock'),
+          onPressed: () {
+            PinLock.lock();
+            context.go('/unlock');
+          },
         ),
       ],
     );

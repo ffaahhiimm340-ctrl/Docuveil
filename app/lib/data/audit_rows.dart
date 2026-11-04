@@ -68,6 +68,16 @@ Verdict _verdict(MatchLevel l) => switch (l) {
   MatchLevel.blocking => Verdict.fix,
 };
 
+/// The purpose picked on the audit screen, shared with the fix-steps screen.
+String selectedPurpose = 'PAN and Aadhaar link';
+
+/// Fix steps the owner has ticked off. Kept for this run of the app only.
+final Set<String> doneSteps = {};
+
+/// Identifies a step by what it is about, so ticking survives a re-audit but
+/// a changed value brings the step back.
+String stepKey(AuditRow r) => '${r.field}|${r.values.join('|')}';
+
 AuditPurpose purposeFor(String label) => switch (label) {
   'PAN and Aadhaar link' => AuditPurpose.panAadhaarLink,
   'Passport' => AuditPurpose.passport,

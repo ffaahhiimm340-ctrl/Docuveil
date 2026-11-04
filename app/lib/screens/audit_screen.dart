@@ -33,7 +33,7 @@ class AuditScreen extends StatefulWidget {
 
 class _AuditScreenState extends State<AuditScreen> {
   static const _purposes = ['PAN and Aadhaar link', 'Passport', 'Exam form'];
-  String _purpose = _purposes.first;
+  String get _purpose => selectedPurpose;
 
   @override
   void initState() {
@@ -67,7 +67,7 @@ class _AuditScreenState extends State<AuditScreen> {
           OptionPill(
             p,
             selected: p == _purpose,
-            onTap: () => setState(() => _purpose = p),
+            onTap: () => setState(() => selectedPurpose = p),
           ),
       ],
     );
@@ -493,6 +493,12 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final purpose = selectedPurpose;
+    final view = buildAuditView(Vault.docs.value, purposeFor(purpose));
+    final todo = view.actionable;
+    final done = todo.where((r) => doneSteps.contains(stepKey(r))).length;
+    final firstOpen = todo.where((r) => !doneSteps.contains(stepKey(r)));
+
     return PageScaffold(
       title: 'Fix these, in order',
       backTo: '/audit',
@@ -501,10 +507,11 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
           'Save this checklist',
           onPressed: () => context.go('/'),
         ),
-        AppButton.secondary(
-          'I fixed the marksheet: scan it again',
-          onPressed: () => context.go('/add'),
-        ),
+        if (firstOpen.isNotEmpty)
+          AppButton.secondary(
+            'I fixed the ${view.papers[firstOpen.first.oddIndex!].toLowerCase()}: scan it again',
+            onPressed: () => context.go('/add'),
+          ),
       ],
       children: [
         AppCard(
@@ -513,17 +520,15 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text('PAN and Aadhaar link', style: AppText.t3),
-                  ),
-                  Text('0 of 3 done', style: AppText.smallBold),
+                  Expanded(child: Text(purpose, style: AppText.t3)),
+                  Text('$done of ${todo.length} done', style: AppText.smallBold),
                 ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(5),
-                child: const LinearProgressIndicator(
-                  value: 0.06,
+                child: LinearProgressIndicator(
+                  value: todo.isEmpty ? 1 : done / todo.length,
                   minHeight: 10,
                   color: AppColors.brand,
                   backgroundColor: AppColors.line,
@@ -532,35 +537,45 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
             ],
           ),
         ),
-        const AppCard(
-          child: FixStep(
-            1,
-            Tone.bad,
-            'Correct the date of birth on your marksheet',
-            'Ask your university exam office. Take your Aadhaar with you.',
-            chips: [
-              LocChip('Marksheet · Google Drive', tone: Tone.bad),
-              LocChip('Aadhaar · Phone', tone: Tone.ok),
-            ],
+        if (todo.isEmpty)
+          const AppCard(
+            child: FixStep(
+              1,
+              Tone.ok,
+              'Your papers agree',
+              'Nothing to fix before you apply.',
+            ),
           ),
-        ),
-        const AppCard(
-          child: FixStep(
-            2,
-            Tone.look,
-            'Check the spelling on your degree certificate',
-            'It says "Varma". This can wait, it will not stop the PAN link.',
-            chips: [LocChip('Certificate · Laptop only', tone: Tone.look)],
+        for (final (i, r) in todo.indexed)
+          AppCard(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: FixStep(
+                    i + 1,
+                    r.verdict.tone,
+                    '${r.detail}: ${view.papers[r.oddIndex!]} needs attention',
+                    r.advice ?? '',
+                    chips: [
+                      LocChip(
+                        '${view.papers[r.oddIndex!]} · ${view.where[r.oddIndex!]}',
+                        tone: r.verdict.tone,
+                      ),
+                    ],
+                  ),
+                ),
+                Checkbox(
+                  value: doneSteps.contains(stepKey(r)),
+                  onChanged: (v) => setState(() {
+                    v == true
+                        ? doneSteps.add(stepKey(r))
+                        : doneSteps.remove(stepKey(r));
+                  }),
+                ),
+              ],
+            ),
           ),
-        ),
-        const AppCard(
-          child: FixStep(
-            3,
-            Tone.ok,
-            'Then link your PAN and Aadhaar',
-            'We will remind you once the marksheet is fixed and re-scanned.',
-          ),
-        ),
         AppCard(
           child: Row(
             children: [
@@ -569,7 +584,10 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Remind me weekly', style: AppText.t3),
-                    Text('Until all 3 steps are done.', style: AppText.small),
+                    Text(
+                      'Until all ${todo.length} steps are done.',
+                      style: AppText.small,
+                    ),
                   ],
                 ),
               ),

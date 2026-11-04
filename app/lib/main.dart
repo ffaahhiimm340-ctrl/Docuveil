@@ -6,17 +6,28 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'data/pin_lock.dart';
 import 'data/vault.dart';
 import 'router.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _loadPin();
   // Needed because Add opens PDFs directly, without a pdfrx viewer widget.
   pdfrxFlutterInitialize();
   runApp(const DocuveilApp());
   unawaited(_openVault());
+}
+
+/// Read the PIN record before the router decides where to start.
+Future<void> _loadPin() async {
+  try {
+    await PinLock.load(SecurePinStore());
+  } catch (e) {
+    debugPrint('Secure storage not available: $e');
+  }
 }
 
 /// Attach the on-device SQLite vault. The app already runs on the demo papers,

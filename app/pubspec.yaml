@@ -45,6 +45,7 @@ dependencies:
   file_picker: ^13.3.0
   pdfrx: ^2.10.1
   crypto: ^3.0.8
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
