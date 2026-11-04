@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/audit_rows.dart';
+import '../data/reminders.dart';
 import '../data/vault.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -489,7 +490,11 @@ class FixStepsScreen extends StatefulWidget {
 }
 
 class _FixStepsScreenState extends State<FixStepsScreen> {
-  bool _remind = true;
+  Future<void> _changed() async {
+    await saveDoneSteps();
+    await ReminderPrefs.save();
+    await Reminders.reschedule();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +576,7 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
                     v == true
                         ? doneSteps.add(stepKey(r))
                         : doneSteps.remove(stepKey(r));
+                    _changed();
                   }),
                 ),
               ],
@@ -592,8 +598,11 @@ class _FixStepsScreenState extends State<FixStepsScreen> {
                 ),
               ),
               Switch(
-                value: _remind,
-                onChanged: (v) => setState(() => _remind = v),
+                value: ReminderPrefs.weeklyFixSteps,
+                onChanged: (v) {
+                  setState(() => ReminderPrefs.weeklyFixSteps = v);
+                  _changed();
+                },
               ),
             ],
           ),

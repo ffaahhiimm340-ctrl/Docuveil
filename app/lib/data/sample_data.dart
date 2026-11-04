@@ -203,6 +203,12 @@ class SampleData {
       if (!v.isDemo) sourceFromVault(v),
   ];
 
+  /// Only what the owner added: the sample papers must not send reminders.
+  static List<PaperSource> get ownerSources => [
+    for (final v in Vault.docs.value)
+      if (!v.isDemo) sourceFromVault(v),
+  ];
+
   static List<Paper> get papers => [for (final s in allSources) checkPaper(s)];
 
   static Paper paperById(String id) {

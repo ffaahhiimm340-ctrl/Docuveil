@@ -6,7 +6,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'data/audit_rows.dart' show loadDoneSteps;
 import 'data/pin_lock.dart';
+import 'data/reminders.dart';
+import 'data/safety_center.dart';
 import 'data/sync_service.dart';
 import 'data/vault.dart';
 import 'data/vault_cipher.dart';
@@ -54,6 +57,11 @@ Future<void> _openVault() async {
       cipher: await VaultCipher.loadOrCreate(SecurePinStore()),
     );
     await Vault.attach(store);
+    await loadDoneSteps();
+    await SafetyLog.load();
+    await ReminderPrefs.load();
+    await Reminders.init();
+    await Reminders.reschedule();
   } catch (e) {
     debugPrint('Vault database not available: $e');
   }

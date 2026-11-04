@@ -6,6 +6,8 @@ import 'package:docuveil_engine/docuveil_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import 'vault.dart';
+
 /// What the safety checks found in one file the owner added.
 class FileReport {
   const FileReport({
@@ -43,7 +45,41 @@ class SafetyLog {
       shared: path != null && looksShared(path),
     );
     reports.value = [r, ...reports.value];
+    save();
     return r;
+  }
+
+  static Future<void> save() => Vault.saveMeta('safety_reports', [
+    for (final r in reports.value)
+      {
+        'file': r.fileName,
+        'path': r.path,
+        'scripts': [for (final s in r.scripts) s.what],
+        'sensitive': [
+          for (final s in r.sensitive) [s.kind, s.masked],
+        ],
+        'shared': r.shared,
+      },
+  ]);
+
+  static Future<void> load() async {
+    final v = await Vault.readMeta('safety_reports');
+    if (v is! List) return;
+    reports.value = [
+      for (final r in v.cast<Map>())
+        FileReport(
+          fileName: r['file'] as String,
+          path: r['path'] as String?,
+          scripts: [
+            for (final s in (r['scripts'] as List).cast<String>()) ScriptFinding(s),
+          ],
+          sensitive: [
+            for (final s in (r['sensitive'] as List).cast<List>())
+              SensitiveFinding(s[0] as String, s[1] as String),
+          ],
+          shared: r['shared'] as bool,
+        ),
+    ];
   }
 }
 
