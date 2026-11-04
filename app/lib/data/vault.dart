@@ -24,6 +24,10 @@ class VaultDoc {
 abstract class VaultStore {
   Future<List<VaultDoc>> all();
   Future<void> put(VaultDoc d);
+
+  /// App state (choices, ticked steps): JSON-encodable values.
+  Future<Object?> readMeta(String key);
+  Future<void> saveMeta(String key, Object? value);
 }
 
 class MemoryVaultStore implements VaultStore {
@@ -34,6 +38,14 @@ class MemoryVaultStore implements VaultStore {
 
   @override
   Future<void> put(VaultDoc d) async => _docs[d.doc.id] = d;
+
+  final _meta = <String, Object?>{};
+
+  @override
+  Future<Object?> readMeta(String key) async => _meta[key];
+
+  @override
+  Future<void> saveMeta(String key, Object? value) async => _meta[key] = value;
 }
 
 /// SQLite-backed store. Every record is encrypted with [VaultCipher]; the
@@ -57,9 +69,14 @@ class SqliteVaultStore implements VaultStore {
     final db = await f.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
-        onCreate: (db, _) => _createSealed(db, 'docs'),
+        version: 4,
+        onCreate: (db, _) async {
+          await _createSealed(db, 'docs');
+          await _createSealed(db, 'meta');
+        },
         onUpgrade: (db, from, _) async {
+          if (from < 4) await _createSealed(db, 'meta');
+          if (from >= 3) return; // already encrypted
           final hasFileName = from >= 2;
           await _createSealed(db, 'docs_sealed');
           for (final r in await db.query('docs')) {
@@ -150,6 +167,23 @@ class SqliteVaultStore implements VaultStore {
     },
   );
 
+  @override
+  Future<Object?> readMeta(String key) async {
+    final row = _cipher.rowName('meta|$key');
+    final rows = await _db.query('meta', where: 'row = ?', whereArgs: [row]);
+    if (rows.isEmpty) return null;
+    return jsonDecode(await _cipher.open(rows.single['sealed'] as String, row));
+  }
+
+  @override
+  Future<void> saveMeta(String key, Object? value) async {
+    final row = _cipher.rowName('meta|$key');
+    await _db.insert('meta', {
+      'row': row,
+      'sealed': await _cipher.seal(jsonEncode(value), row),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<void> close() => _db.close();
 }
 
@@ -161,6 +195,13 @@ class Vault {
   static final ValueNotifier<List<VaultDoc>> docs = ValueNotifier(demoDocs());
 
   static VaultStore? _store;
+  static final _memory = MemoryVaultStore();
+
+  /// App state, saved with the vault's encryption once a store is attached.
+  static Future<Object?> readMeta(String key) =>
+      (_store ?? _memory).readMeta(key);
+  static Future<void> saveMeta(String key, Object? value) =>
+      (_store ?? _memory).saveMeta(key, value);
 
   /// Save a paper (to the attached store when there is one) and show it.
   static Future<void> add(VaultDoc d) async {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:docuveil/data/intake.dart';
 import 'package:docuveil/data/ocr_service.dart';
 import 'package:docuveil/data/pin_lock.dart';
+import 'package:docuveil/data/reminders.dart';
 import 'package:docuveil/data/vault.dart';
 import 'package:docuveil/data/vault_cipher.dart';
 import 'package:docuveil_engine/docuveil_engine.dart'
@@ -91,6 +92,34 @@ void main() {
     final pin = await VaultCipher.loadOrCreate(store);
     final again = await VaultCipher.loadOrCreate(store);
     expect(await again.open(await pin.seal('x', 'r'), 'r'), 'x');
+  });
+
+  testWidgets('reminders reach the system schedule', (_) async {
+    await Reminders.init();
+    final far = DateTime.now().add(const Duration(days: 200));
+    await Vault.add(
+      VaultDoc(
+        ExtractedDoc(
+          id: 'insurance-reminder-test',
+          type: DocType.insurance,
+          fields: {'expiry_date': '${far.day}/${far.month}/${far.year}'},
+        ),
+        'Test',
+      ),
+    );
+    ReminderPrefs.days30 = true;
+    ReminderPrefs.days7 = true;
+    ReminderPrefs.days1 = false;
+    final n = await Reminders.reschedule(askPermission: false);
+    expect(n, 2);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      expect(await Reminders.pendingCount(), 2);
+    }
+    ReminderPrefs.days7 = false;
+    expect(await Reminders.reschedule(askPermission: false), 1);
+    // Leave the device as it was: nothing scheduled by this test.
+    Vault.docs.value = demoDocs();
+    expect(await Reminders.reschedule(askPermission: false), 0);
   });
 
   testWidgets('the encrypted database works, and its file shows no plain text', (_) async {

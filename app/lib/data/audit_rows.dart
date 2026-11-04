@@ -71,8 +71,20 @@ Verdict _verdict(MatchLevel l) => switch (l) {
 /// The purpose picked on the audit screen, shared with the fix-steps screen.
 String selectedPurpose = 'PAN and Aadhaar link';
 
-/// Fix steps the owner has ticked off. Kept for this run of the app only.
+/// Fix steps the owner has ticked off.
 final Set<String> doneSteps = {};
+
+Future<void> loadDoneSteps() async {
+  final v = await Vault.readMeta('done_steps');
+  if (v is List) {
+    doneSteps
+      ..clear()
+      ..addAll(v.cast<String>());
+  }
+}
+
+Future<void> saveDoneSteps() =>
+    Vault.saveMeta('done_steps', doneSteps.toList());
 
 /// Identifies a step by what it is about, so ticking survives a re-audit but
 /// a changed value brings the step back.

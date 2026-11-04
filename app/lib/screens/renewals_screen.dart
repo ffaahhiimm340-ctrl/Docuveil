@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/reminders.dart';
 import '../data/sample_data.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -16,9 +17,11 @@ class RenewalsScreen extends StatefulWidget {
 }
 
 class _RenewalsScreenState extends State<RenewalsScreen> {
-  bool _d30 = true;
-  bool _d7 = true;
-  bool _d1 = false;
+  void _set(void Function() change) {
+    setState(change);
+    ReminderPrefs.save();
+    Reminders.reschedule();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,9 +90,9 @@ class _RenewalsScreenState extends State<RenewalsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Remind me before', style: AppText.t3),
-              toggle('30 days', _d30, (v) => setState(() => _d30 = v)),
-              toggle('7 days', _d7, (v) => setState(() => _d7 = v)),
-              toggle('1 day', _d1, (v) => setState(() => _d1 = v)),
+              toggle('30 days', ReminderPrefs.days30, (v) => _set(() => ReminderPrefs.days30 = v)),
+              toggle('7 days', ReminderPrefs.days7, (v) => _set(() => ReminderPrefs.days7 = v)),
+              toggle('1 day', ReminderPrefs.days1, (v) => _set(() => ReminderPrefs.days1 = v)),
             ],
           ),
         ),

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import 'ocr_service.dart';
+import 'reminders.dart';
 import 'safety_center.dart';
 import 'vault.dart';
 
@@ -167,6 +168,7 @@ class Intake {
       fileName: d.fileName,
     );
     await Vault.add(doc);
+    await Reminders.reschedule();
     return doc;
   }
 }
