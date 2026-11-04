@@ -17,6 +17,17 @@ from pathlib import Path
 from generate import MONTHS, make_docs, make_person
 
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+DEGREES = ["B.Sc. Computer Science", "B.Com.", "M.C.A.", "B.E. Mechanical Engineering", "B.A. Economics"]
+
+
+def all_docs(r, p):
+    """generate.py's documents plus a degree certificate. Kept here so
+    generate.py's seeded output does not change."""
+    docs = make_docs(r, p)
+    pid = f"p{p['idx']:03d}"
+    fields = {"name": p["name"], "degree": r.choice(DEGREES), "year": str(r.randint(2012, 2025))}
+    docs.append({"id": f"{pid}-certificate", "doc_type": "certificate", "fields": fields, "text": ""})
+    return docs
 
 
 def _dob_variant(r, dob):
@@ -78,6 +89,23 @@ def render(r, doc):
             f"Date of Expiry{sep}{f['expiry_date']}",
             "Name of Father / Legal Guardian", f["father_name"].upper(),
         ]
+    elif t == "certificate":
+        if r.random() < 0.6:  # prose, as on a real degree certificate
+            lines = [
+                r.choice(["FICTIONAL INSTITUTE OF TECHNOLOGY", "SYNTHETIC UNIVERSITY OF PUNE"]),
+                "DEGREE CERTIFICATE",
+                "This is to certify that",
+                f["name"],
+                "has been awarded the degree of",
+                f["degree"],
+                f"in the year {f['year']}",
+                "SYNTHETIC SAMPLE - NOT A REAL DOCUMENT",
+            ]
+        else:
+            lines = [
+                "FICTIONAL INSTITUTE OF TECHNOLOGY", "Certificate",
+                f"Name{sep}{f['name']}", f"Degree{sep}{f['degree']}", f"Year{sep}{f['year']}",
+            ]
     elif t == "insurance":
         amount = f["sum_assured"]
         printed = r.choice([amount, f"Rs. {int(amount):,}".replace(",", ","), "Rs. " + _indian(int(amount))])
@@ -128,7 +156,7 @@ def main():
     rows = []
     for i in range(a.people):
         p = make_person(r, i)
-        for doc in make_docs(r, p):
+        for doc in all_docs(r, p):
             text, gold = render(r, doc)
             for noise in (0.0, 0.02, 0.05):
                 rows.append({"id": doc["id"], "doc_type": doc["doc_type"], "noise": noise,

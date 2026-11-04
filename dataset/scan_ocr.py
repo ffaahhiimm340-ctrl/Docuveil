@@ -22,8 +22,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from rapidocr_onnxruntime import RapidOCR
 
-from generate import make_docs, make_person
-from render_text import render
+from generate import make_person
+from render_text import all_docs, render
 
 FONTS = ["arial.ttf", "times.ttf", "verdana.ttf", "cour.ttf"]
 
@@ -104,7 +104,7 @@ def main():
     rows, t0 = [], time.time()
     for i in range(a.people):
         p = make_person(r, i)
-        for doc in make_docs(r, p):
+        for doc in all_docs(r, p):
             text, gold = render(r, doc)
             font, size = r.choice(FONTS), r.randint(26, 34)
             variants = [("original", text, gold, None), ("rescan", text, gold, None)]

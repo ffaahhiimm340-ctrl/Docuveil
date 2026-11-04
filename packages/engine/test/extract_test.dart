@@ -116,6 +116,24 @@ PassportNo.W6669725''');
     expect(normalizeField('sum_assured', i['sum_assured']!), '5000.5');
   });
 
+  test('certificate: prose and labelled layouts', () {
+    final a = extractFields(DocType.certificate, '''
+FICTIONAL INSTITUTE OF TECHNOLOGY
+DEGREE CERTIFICATE
+This is to certify that
+Asha Rajesh Verma
+has been awarded the degree of
+B.Sc. Computer Science
+in the year 2023''');
+    expect(a, {
+      'name': 'Asha Rajesh Verma',
+      'degree': 'B.Sc. Computer Science',
+      'year': '2023',
+    });
+    final b = extractFields(DocType.certificate, 'X\nName : Asha Verma\nDegree : M.C.A.\nYear : 2019');
+    expect(b, {'name': 'Asha Verma', 'degree': 'M.C.A.', 'year': '2019'});
+  });
+
   test('a missing label gives no field rather than a wrong one', () {
     final f = extractFields(DocType.pan, 'INCOME TAX DEPARTMENT\nSignature');
     expect(f.containsKey('name'), isFalse);
