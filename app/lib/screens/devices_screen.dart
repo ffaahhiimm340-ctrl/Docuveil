@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../data/sample_data.dart';
+import '../data/sync_service.dart';
+import '../data/vault.dart';
 import '../models/models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -18,20 +22,7 @@ class DevicesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final wide = Breakpoints.isWide(context);
 
-    final status = InfoBanner(
-      tone: Tone.ok,
-      radius: 22,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Everything is in sync',
-            style: AppText.t3.copyWith(color: AppColors.safe),
-          ),
-          Text('Last check: 2 minutes ago.', style: AppText.body),
-        ],
-      ),
-    );
+    const status = _SyncCard();
 
     final devices = ListGroup(
       children: [
@@ -128,11 +119,44 @@ class DevicesScreen extends StatelessWidget {
 }
 
 /// 17 Add a device: pairing code.
-class PairScreen extends StatelessWidget {
+class PairScreen extends StatefulWidget {
   const PairScreen({super.key});
 
   @override
+  State<PairScreen> createState() => _PairScreenState();
+}
+
+class _PairScreenState extends State<PairScreen> {
+  final _code = TextEditingController();
+  String? _shown;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    SyncService.instance.secretOrCreate().then((s) {
+      if (mounted) setState(() => _shown = s.encode());
+    });
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _join() async {
+    try {
+      await SyncService.instance.join(_code.text);
+      if (mounted) context.go('/devices');
+    } on FormatException catch (e) {
+      setState(() => _error = e.message);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final shown = _shown;
     return PageScaffold(
       title: 'Add a device',
       backTo: '/devices',
@@ -140,42 +164,63 @@ class PairScreen extends StatelessWidget {
         AppButton.secondary('Cancel', onPressed: () => context.go('/devices')),
       ],
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            const OptionPill('Phone or tablet', selected: true),
-            const OptionPill('Laptop or PC'),
-          ],
-        ),
         AppCard(
           radius: 24,
           padding: const EdgeInsets.all(22),
           child: Column(
             children: [
               Text(
-                'Scan this code on your other device',
+                'Show this code to your other device',
                 style: AppText.t3,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              const _FakeQr(size: 190),
-              const SizedBox(height: 10),
-              Text('Or type this code:', style: AppText.small),
+              if (shown == null)
+                const SizedBox(
+                  height: 190,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else ...[
+                QrImageView(data: shown, size: 190),
+                const SizedBox(height: 10),
+                Text('Or copy this code:', style: AppText.small),
+                SelectableText(
+                  shown,
+                  textAlign: TextAlign.center,
+                  style: AppText.path,
+                ),
+                TextButton(
+                  onPressed: () => Clipboard.setData(ClipboardData(text: shown)),
+                  child: const Text('Copy'),
+                ),
+              ],
               Text(
-                '482 913',
-                style: AppText.num(34).copyWith(letterSpacing: 4),
+                'Anyone who gets this code can link to your vault. Do not share it.',
+                textAlign: TextAlign.center,
+                style: AppText.small,
               ),
-              Text('Works for 10 minutes.', style: AppText.small),
             ],
           ),
         ),
-        const ListGroup(
-          children: [
-            _StepRow(1, 'Install Docuveil on the other device.'),
-            _StepRow(2, 'Choose "I already have a vault".'),
-            _StepRow(3, 'Scan the code or type the number.'),
-          ],
+        AppCard(
+          radius: 24,
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Have a code from your other device?', style: AppText.t3),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _code,
+                decoration: InputDecoration(
+                  hintText: 'dv1:...',
+                  errorText: _error,
+                ),
+              ),
+              const SizedBox(height: 10),
+              AppButton.primary('Link this device', onPressed: _join),
+            ],
+          ),
         ),
         InfoBanner(
           tone: Tone.brand,
@@ -190,93 +235,88 @@ class PairScreen extends StatelessWidget {
   }
 }
 
-class _StepRow extends StatelessWidget {
-  const _StepRow(this.n, this.text);
-  final int n;
-  final String text;
+/// Live sync state: relay address, a sync button, and what it found.
+class _SyncCard extends StatefulWidget {
+  const _SyncCard();
+
+  @override
+  State<_SyncCard> createState() => _SyncCardState();
+}
+
+class _SyncCardState extends State<_SyncCard> {
+  late final _url = TextEditingController(text: SyncService.instance.relayUrl);
+  String? _message;
+  bool _bad = false;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _url.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sync() async {
+    final sync = SyncService.instance;
+    setState(() => _busy = true);
+    try {
+      await sync.setRelayUrl(_url.text);
+      final r = await sync.syncNow(Vault.docs.value);
+      setState(() {
+        _bad = r.alerts.isNotEmpty;
+        _message = r.alerts.isEmpty
+            ? 'Checked ${r.pushed} papers: your devices agree.'
+            : r.alerts.map((a) => a.summary()).join('\n');
+      });
+    } catch (e) {
+      setState(() {
+        _bad = true;
+        _message = 'Could not sync: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return RowTile(
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: const BoxDecoration(
-          color: AppColors.brandTint,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
+    final sync = SyncService.instance;
+    if (!sync.isPaired) {
+      return InfoBanner(
+        tone: Tone.look,
+        radius: 22,
         child: Text(
-          '$n',
-          style: AppText.bodyBold.copyWith(color: AppColors.brand),
+          'This device is not linked yet. Add a device to compare your copies.',
+          style: AppText.body,
         ),
-      ),
-      title: text,
-    );
-  }
-}
-
-/// Stand-in for the pairing QR code until the real one is generated.
-class _FakeQr extends StatelessWidget {
-  const _FakeQr({required this.size});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Example pairing code',
-      image: true,
-      child: SizedBox.square(
-        dimension: size,
-        child: CustomPaint(painter: _QrPainter()),
-      ),
-    );
-  }
-}
-
-class _QrPainter extends CustomPainter {
-  static const _on = <(int, int, int, int)>[
-    (0, 0, 3, 3),
-    (8, 0, 3, 3),
-    (0, 8, 3, 3),
-    (4, 0, 1, 1),
-    (6, 1, 1, 1),
-    (4, 2, 1, 1),
-    (5, 3, 2, 1),
-    (0, 4, 1, 1),
-    (2, 4, 2, 1),
-    (5, 5, 1, 2),
-    (7, 4, 2, 1),
-    (9, 5, 2, 1),
-    (3, 6, 1, 1),
-    (7, 6, 1, 2),
-    (9, 7, 1, 1),
-    (4, 8, 2, 1),
-    (6, 9, 1, 2),
-    (8, 9, 1, 1),
-    (10, 9, 1, 2),
-    (4, 10, 1, 1),
-    (1, 5, 1, 1),
-    (2, 7, 1, 1),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final u = size.width / 11;
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
-    final ink = Paint()..color = AppColors.ink;
-    for (final r in _on) {
-      canvas.drawRect(
-        Rect.fromLTWH(r.$1 * u, r.$2 * u, r.$3 * u, r.$4 * u),
-        ink,
       );
     }
-    final white = Paint()..color = Colors.white;
-    for (final p in const [(1, 1), (9, 1), (1, 9)]) {
-      canvas.drawRect(Rect.fromLTWH(p.$1 * u, p.$2 * u, u, u), white);
-    }
+    return AppCard(
+      radius: 22,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Relay address', style: AppText.bodyBold),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _url,
+            decoration: const InputDecoration(hintText: 'https://...'),
+          ),
+          const SizedBox(height: 10),
+          AppButton.primary(
+            _busy ? 'Checking...' : 'Check my devices now',
+            onPressed: _busy ? null : _sync,
+          ),
+          if (_message != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _message!,
+              style: AppText.body.copyWith(
+                color: _bad ? AppColors.bad : AppColors.safe,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

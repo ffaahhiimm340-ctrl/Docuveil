@@ -1,4 +1,5 @@
-import 'package:docuveil_engine/docuveil_engine.dart' show ExtractedDoc, normalizeDate;
+import 'package:docuveil_engine/docuveil_engine.dart'
+    show DivergenceAlert, ExtractedDoc, Urgency, normalizeDate;
 
 import '../models/models.dart';
 import '../theme/app_colors.dart';
@@ -138,6 +139,22 @@ List<AlertItem> alertsFrom(
   }
   return [...urgent, ...soon];
 }
+
+/// Alerts for copies on the owner's other devices that disagree with this
+/// one. They cannot say which copy is right, so they lead to the Devices page.
+List<AlertItem> syncAlerts(List<DivergenceAlert> found) => [
+  for (final a in found)
+    AlertItem(
+      group: switch (a.urgency) {
+        Urgency.immediate => 'urgent',
+        Urgency.batched => 'soon',
+        Urgency.low => 'info',
+      },
+      tone: a.urgency == Urgency.immediate ? Tone.bad : Tone.look,
+      title: 'A copy differs on another device',
+      text: a.summary(),
+    ),
+];
 
 /// A paper the owner added through the Add flow, as a one-copy source.
 PaperSource sourceFromVault(VaultDoc v) {

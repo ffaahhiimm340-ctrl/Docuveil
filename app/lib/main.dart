@@ -7,6 +7,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'data/pin_lock.dart';
+import 'data/sync_service.dart';
 import 'data/vault.dart';
 import 'router.dart';
 import 'state/app_state.dart';
@@ -25,6 +26,8 @@ Future<void> main() async {
 Future<void> _loadPin() async {
   try {
     await PinLock.load(SecurePinStore());
+    SyncService.instance = SyncService(store: SecurePinStore());
+    await SyncService.instance.load();
   } catch (e) {
     debugPrint('Secure storage not available: $e');
   }

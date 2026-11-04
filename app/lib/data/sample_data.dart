@@ -3,6 +3,7 @@ import 'package:docuveil_engine/docuveil_engine.dart' show DocType, ExtractedDoc
 import '../models/models.dart';
 import 'copy_check.dart';
 import 'derived.dart';
+import 'sync_service.dart';
 import 'vault.dart';
 
 // NOTE: rebuilt to match the screens (the original was never committed, see
@@ -207,8 +208,10 @@ class SampleData {
     return all.firstWhere((p) => p.id == id, orElse: () => all.first);
   }
 
-  static List<AlertItem> get alerts =>
-      alertsFrom(papers, renewalsFrom(allSources, DateTime.now()));
+  static List<AlertItem> get alerts => [
+    ...syncAlerts(SyncService.instance.alerts.value),
+    ...alertsFrom(papers, renewalsFrom(allSources, DateTime.now())),
+  ];
 
   static int get urgentCount => alerts.where((a) => a.group == 'urgent').length;
 
