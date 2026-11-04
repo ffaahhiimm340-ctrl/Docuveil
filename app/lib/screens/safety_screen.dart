@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../data/safety_center.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
-import '../widgets/buttons.dart';
 import '../widgets/cards.dart';
 import '../widgets/chips.dart';
 import '../widgets/layout.dart';
@@ -17,155 +18,201 @@ class SafetyScreen extends StatefulWidget {
 }
 
 class _SafetyScreenState extends State<SafetyScreen> {
-  bool _guard = true;
+  String? _guardError;
+
+  Future<void> _toggleGuard(bool on) async {
+    setState(() => _guardError = null);
+    try {
+      if (on) {
+        await DecoyGuard.enable(await getApplicationDocumentsDirectory());
+      } else {
+        await DecoyGuard.disable();
+      }
+    } catch (e) {
+      setState(() => _guardError = 'Could not change the guard: $e');
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    return PageScaffold(
-      title: 'Safety centre',
-      backTo: '/settings',
-      children: [
-        AppCard(
-          borderColor: AppColors.warnBorder,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+    return ValueListenableBuilder(
+      valueListenable: SafetyLog.reports,
+      builder: (context, reports, _) {
+        final scripts = reports.where((r) => r.scripts.isNotEmpty).toList();
+        final exposed = reports.where((r) => r.shared && r.sensitive.isNotEmpty).toList();
+        return PageScaffold(
+          title: 'Safety centre',
+          backTo: '/settings',
+          children: [
+            AppCard(
+              borderColor: scripts.isEmpty ? null : AppColors.warnBorder,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const IconTile(Icons.shield_outlined, tone: Tone.look),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    children: [
+                      IconTile(
+                        Icons.shield_outlined,
+                        tone: scripts.isEmpty ? Tone.ok : Tone.look,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Hidden-script scan', style: AppText.t3),
+                            Text(
+                              'Checked ${reports.length} file${reports.length == 1 ? '' : 's'} added since opening the app',
+                              style: AppText.small,
+                            ),
+                          ],
+                        ),
+                      ),
+                      StatusChip(
+                        scripts.isEmpty ? 'Nothing found' : '${scripts.length} found',
+                        tone: scripts.isEmpty ? Tone.ok : Tone.look,
+                        compact: true,
+                      ),
+                    ],
+                  ),
+                  for (final r in scripts) ...[
+                    const SizedBox(height: 10),
+                    _FileBox(r.fileName, r.path, r.scripts.map((s) => s.what).join(' ')),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Looks for macros and scripts in documents. It is not an antivirus, and a clean result does not prove a file is safe.',
+                    style: AppText.small,
+                  ),
+                ],
+              ),
+            ),
+            AppCard(
+              borderColor: DecoyGuard.alarm.value == null ? null : AppColors.bad,
+              child: ValueListenableBuilder(
+                valueListenable: DecoyGuard.alarm,
+                builder: (context, alarm, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text('Hidden-script scan', style: AppText.t3),
-                        Text(
-                          'Checked 24 new files today',
-                          style: AppText.small,
+                        IconTile(
+                          Icons.laptop_rounded,
+                          tone: alarm == null ? Tone.ok : Tone.bad,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Ransomware guard', style: AppText.t3),
+                              Text('Windows only', style: AppText.small),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: DecoyGuard.active.value,
+                          onChanged: DecoyGuard.supported ? _toggleGuard : null,
                         ),
                       ],
                     ),
-                  ),
-                  const StatusChip('1 held', tone: Tone.look, compact: true),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Offer_Letter.docm', style: AppText.bodyBold),
-                    const PathText('Phone / Download / Offer_Letter.docm'),
+                    const SizedBox(height: 8),
                     Text(
-                      'Contains a hidden macro. Moved to quarantine.',
-                      style: AppText.small,
+                      !DecoyGuard.supported
+                          ? 'Not available on this device.'
+                          : DecoyGuard.active.value
+                          ? 'Watching 3 decoy files while the app is open. It warns you; it cannot stop an attack.'
+                          : 'Off. Turning it on puts 3 small decoy files in a hidden folder in your Documents, and turning it off removes them.',
+                      style: AppText.sub,
                     ),
+                    if (_guardError != null)
+                      Text(
+                        _guardError!,
+                        style: AppText.smallBold.copyWith(color: AppColors.bad),
+                      ),
+                    if (alarm != null) ...[
+                      const SizedBox(height: 8),
+                      StatusChip(alarm, tone: Tone.bad),
+                    ] else if (DecoyGuard.active.value) ...[
+                      const SizedBox(height: 8),
+                      const StatusChip('No problems found', tone: Tone.ok),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
+            ),
+            AppCard(
+              borderColor: exposed.isEmpty ? null : AppColors.warnBorder,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: AppButton.secondary(
-                      'Delete it',
-                      danger: true,
-                      onPressed: () {},
-                    ),
+                  Row(
+                    children: [
+                      IconTile(
+                        Icons.info_outline_rounded,
+                        tone: exposed.isEmpty ? Tone.ok : Tone.look,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'ID numbers in shared places',
+                          style: AppText.t3,
+                        ),
+                      ),
+                      StatusChip(
+                        exposed.isEmpty ? 'None found' : '${exposed.length} to review',
+                        tone: exposed.isEmpty ? Tone.ok : Tone.look,
+                        compact: true,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: AppButton.secondary(
-                      'Keep it held',
-                      onPressed: () {},
+                  for (final r in exposed) ...[
+                    const SizedBox(height: 10),
+                    _FileBox(
+                      r.fileName,
+                      r.path,
+                      'Has ${r.sensitive.map((s) => '${s.kind} ${s.masked}').join(', ')}, and is in a folder other people may be able to open.',
                     ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Checks files as you add them. The folder check goes by its name, so it can be wrong.',
+                    style: AppText.small,
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const IconTile(Icons.laptop_rounded, tone: Tone.ok),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Ransomware guard', style: AppText.t3),
-                        Text('Windows laptop only', style: AppText.small),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: _guard,
-                    onChanged: (v) => setState(() => _guard = v),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Watching 3 decoy files. If many files change at once, we warn you and pause syncing.',
-                style: AppText.sub,
-              ),
-              const SizedBox(height: 4),
-              const PathText(r'C:\Users\Asha\Documents\.docuveil-decoys'),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: StatusChip('No problems found', tone: Tone.ok),
-              ),
-            ],
-          ),
-        ),
-        AppCard(
-          borderColor: AppColors.warnBorder,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const IconTile(Icons.info_outline_rounded, tone: Tone.look),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ID numbers in shared places', style: AppText.t3),
-                        Text('1 warning', style: AppText.small),
-                      ],
-                    ),
-                  ),
-                  const StatusChip('Review', tone: Tone.look, compact: true),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'An Aadhaar-style number was found in a scan that other people can open.',
-                style: AppText.sub,
-              ),
-              const PathText(
-                'Google Drive / Shared with family / scan_0412.jpg',
-              ),
-              const SizedBox(height: 10),
-              AppButton.secondary('Stop sharing this file', onPressed: () {}),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FileBox extends StatelessWidget {
+  const _FileBox(this.name, this.path, this.note);
+
+  final String name;
+  final String? path;
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name, style: AppText.bodyBold),
+          if (path != null) PathText(path!),
+          Text(note, style: AppText.small),
+        ],
+      ),
     );
   }
 }

@@ -107,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.shield_outlined,
               'Safety centre',
               '/safety',
-              sub: '1 file held',
+              sub: 'Checks on files you add',
             ),
             link(Icons.event_outlined, 'Renewals and dates', '/renewals'),
             link(Icons.help_outline_rounded, 'Help and privacy', '/help'),

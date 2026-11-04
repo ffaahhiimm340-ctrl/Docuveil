@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'safety_center.dart';
 import 'vault.dart';
 
 /// The fields a paper of each type should have; anything the extractor did
@@ -44,6 +45,9 @@ class IntakeDraft {
 
   /// Set when the file could not be read at all (e.g. a photo, for now).
   final String? problem;
+
+  /// Safety checks run on the picked file.
+  FileReport? safety;
 }
 
 /// Build a draft from a file's bytes and its text. Pure, so it is testable.
@@ -104,6 +108,7 @@ class Intake {
         'Reading photos needs on-device OCR, which is coming. Please type the details.',
       );
     }
+    draft.safety = SafetyLog.check(f.name, f.path, bytes, draft.text);
     current.value = draft;
     return draft;
   }

@@ -246,6 +246,25 @@ class AddCheckScreen extends StatelessWidget {
           'Fix anything that looks wrong. This becomes your trusted original.',
           style: AppText.sub,
         ),
+        for (final s in draft?.safety?.scripts ?? const [])
+          InfoBanner(
+            tone: Tone.bad,
+            icon: Icons.warning_amber_rounded,
+            child: Text(
+              '${s.what} Do not open it unless you trust where it came from.',
+              style: AppText.body,
+            ),
+          ),
+        if (draft?.safety != null &&
+            draft!.safety!.shared &&
+            draft.safety!.sensitive.isNotEmpty)
+          InfoBanner(
+            tone: Tone.look,
+            child: Text(
+              'This file has an ID number and is in a folder other people may be able to open.',
+              style: AppText.body,
+            ),
+          ),
         if (draft?.problem != null)
           InfoBanner(
             tone: Tone.look,

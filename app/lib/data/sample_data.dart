@@ -2,7 +2,9 @@ import 'package:docuveil_engine/docuveil_engine.dart' show DocType, ExtractedDoc
 
 import '../models/models.dart';
 import 'copy_check.dart';
+import '../theme/app_colors.dart';
 import 'derived.dart';
+import 'safety_center.dart';
 import 'sync_service.dart';
 import 'vault.dart';
 
@@ -209,6 +211,13 @@ class SampleData {
   }
 
   static List<AlertItem> get alerts => [
+    if (DecoyGuard.alarm.value != null)
+      AlertItem(
+        group: 'urgent',
+        tone: Tone.bad,
+        title: 'Ransomware guard warning',
+        text: '${DecoyGuard.alarm.value} Stop syncing and check this computer.',
+      ),
     ...syncAlerts(SyncService.instance.alerts.value),
     ...alertsFrom(papers, renewalsFrom(allSources, DateTime.now())),
   ];
