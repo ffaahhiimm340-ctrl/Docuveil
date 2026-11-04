@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_state.dart';
+import '../data/sample_data.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import 'layout.dart';
@@ -90,7 +91,7 @@ class _SideNav extends StatelessWidget {
             icon: Icons.notifications_none_rounded,
             route: '/alerts',
             on: _on('/alerts'),
-            badge: 1,
+            badge: SampleData.urgentCount == 0 ? null : SampleData.urgentCount,
           ),
           _SideLink(
             label: 'Check before applying',
@@ -377,7 +378,7 @@ class _BottomNav extends StatelessWidget {
                   'Alerts',
                   Icons.notifications_none_rounded,
                   '/alerts',
-                  badge: 1,
+                  badge: SampleData.urgentCount == 0 ? null : SampleData.urgentCount,
                 ),
                 item('Check', Icons.verified_user_outlined, '/audit'),
               ],

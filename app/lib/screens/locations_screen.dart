@@ -91,8 +91,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
                     text: single.first.shortTitle,
                     style: AppText.bodyBold,
                   ),
-                  const TextSpan(
-                    text: ' is only on your laptop. If that laptop is lost, so is the paper. ',
+                  TextSpan(
+                    text:
+                        ' is only on ${single.first.copies.single.placeName}. If that is lost, so is the paper. ',
                   ),
                   WidgetSpan(
                     alignment: PlaceholderAlignment.baseline,

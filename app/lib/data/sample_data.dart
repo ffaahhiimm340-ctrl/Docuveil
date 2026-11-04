@@ -1,8 +1,9 @@
 import 'package:docuveil_engine/docuveil_engine.dart' show DocType, ExtractedDoc;
 
 import '../models/models.dart';
-import '../theme/app_colors.dart';
 import 'copy_check.dart';
+import 'derived.dart';
+import 'vault.dart';
 
 // NOTE: rebuilt to match the screens (the original was never committed, see
 // PR #3). Everything here is synthetic: a fictional person, "Asha Verma".
@@ -192,41 +193,24 @@ class SampleData {
     ),
   ];
 
-  static final List<Paper> papers = [for (final s in sources) checkPaper(s)];
-
-  static Paper paperById(String id) =>
-      papers.firstWhere((p) => p.id == id, orElse: () => papers.first);
-
-  static const alerts = [
-    AlertItem(
-      group: 'urgent',
-      tone: Tone.bad,
-      title: 'Marksheet changed on Google Drive',
-      text: 'CGPA, Semester 2 went from 8.74 to 9.40. Your laptop copy is the original.',
-      paperId: 'marksheet',
-      when: 'Today, 9:12 am',
-    ),
-    AlertItem(
-      group: 'soon',
-      tone: Tone.look,
-      title: 'Health insurance renews on 12 Mar',
-      text: 'Renew in the next few months to stay covered.',
-      paperId: 'insurance',
-    ),
-    AlertItem(
-      group: 'soon',
-      tone: Tone.look,
-      title: 'Degree certificate has only one copy',
-      text: 'It is only on your laptop. Add a backup.',
-      paperId: 'certificate',
-    ),
-    AlertItem(
-      group: 'info',
-      tone: Tone.ok,
-      title: 'Your laptop is in sync',
-      text: 'Last check: 2 minutes ago.',
-    ),
+  /// Sample papers plus everything the owner has added.
+  static List<PaperSource> get allSources => [
+    ...sources,
+    for (final v in Vault.docs.value)
+      if (!v.isDemo) sourceFromVault(v),
   ];
+
+  static List<Paper> get papers => [for (final s in allSources) checkPaper(s)];
+
+  static Paper paperById(String id) {
+    final all = papers;
+    return all.firstWhere((p) => p.id == id, orElse: () => all.first);
+  }
+
+  static List<AlertItem> get alerts =>
+      alertsFrom(papers, renewalsFrom(allSources, DateTime.now()));
+
+  static int get urgentCount => alerts.where((a) => a.group == 'urgent').length;
 
   static const devices = [
     DeviceInfo(PlaceKind.phone, "Asha's phone", 'Android'),
@@ -245,20 +229,8 @@ class SampleData {
     WatchedPlace(PlaceKind.cloud, 'Google Drive', 'My Drive / Docuveil'),
   ];
 
-  static const dates = [
-    DateItem(
-      month: 'MAR',
-      day: '12',
-      title: 'Health insurance renews',
-      when: 'In 4 months',
-      tone: Tone.look,
-    ),
-    DateItem(
-      month: 'JUL',
-      day: '04',
-      title: 'Passport application window',
-      when: 'In 8 months',
-      tone: Tone.brand,
-    ),
+  /// Renewal dates from the papers themselves, soonest first.
+  static List<DateItem> get dates => [
+    for (final r in renewalsFrom(allSources, DateTime.now())) r.$1,
   ];
 }

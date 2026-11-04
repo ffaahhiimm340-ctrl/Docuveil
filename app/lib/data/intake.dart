@@ -131,6 +131,7 @@ class Intake {
         text: d.text,
       ),
       location,
+      fileName: d.fileName,
     );
     await Vault.add(doc);
     return doc;
