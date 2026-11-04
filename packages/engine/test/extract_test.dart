@@ -101,6 +101,21 @@ PassportNo.W6669725''');
     expect(r.harmlessNotes, contains('a number elsewhere on the page differs'));
   });
 
+  test('values starting with a letter glued to the label are found', () {
+    final m = extractFields(DocType.marksheet, 'NameAman Reddy\nRollNoS028527\nSemester2');
+    expect(m['name'], 'Aman Reddy');
+    expect(m['seat_number'], 'S028527');
+    expect(m['semester'], '2');
+    final i = extractFields(DocType.insurance, 'X\nPo1icy No.POL35570283\nSumInsuredRs.10,00.000');
+    expect(i['policy_number'], 'POL35570283');
+    expect(normalizeField('sum_assured', i['sum_assured']!), '1000000');
+  });
+
+  test('a real decimal in an amount is kept', () {
+    final i = extractFields(DocType.insurance, 'X\nSum Insured : 5000.50');
+    expect(normalizeField('sum_assured', i['sum_assured']!), '5000.5');
+  });
+
   test('a missing label gives no field rather than a wrong one', () {
     final f = extractFields(DocType.pan, 'INCOME TAX DEPARTMENT\nSignature');
     expect(f.containsKey('name'), isFalse);
