@@ -1,6 +1,7 @@
 """Render synthetic documents as scanned images and OCR them with RapidOCR.
 
     dataset/.venv/Scripts/python dataset/scan_ocr.py --people 40 --out dataset/generated
+    add --engine windows to use the OCR built into Windows, as the app does
 
 For each document three images are made and OCR'd:
   original  - a scan of the document
@@ -14,13 +15,14 @@ Writes ocr.jsonl (OCR text + gold fields per image). Images go to
 import argparse
 import io
 import json
+import os
 import random
 import re
+import subprocess
 import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from rapidocr_onnxruntime import RapidOCR
 
 from generate import make_person
 from render_text import all_docs, render
@@ -75,6 +77,18 @@ def ocr_text(engine, img):
     return "\n".join(" ".join(t for *_, t in sorted(l, key=lambda b: b[2])) for l in lines)
 
 
+def windows_ocr(img, tmp):
+    """The OCR built into Windows, through windows_ocr.ps1."""
+    img.save(tmp, quality=90)
+    res = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-File", str(Path(__file__).with_name("windows_ocr.ps1"))],
+        env={**os.environ, "DOCUVEIL_OCR_IMAGE": str(Path(tmp).resolve())},
+        capture_output=True, encoding="utf-8", errors="replace", check=True,
+    )
+    return res.stdout.strip()
+
+
 def edit_one_digit(r, text, gold):
     """Change one digit of one printed field value. Returns (text, gold, edit)
     or None when no field value with a digit is printed verbatim."""
@@ -96,11 +110,18 @@ def main():
     ap.add_argument("--people", type=int, default=40)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--out", default="dataset/generated")
+    ap.add_argument("--engine", choices=["rapidocr", "windows"], default="rapidocr")
     a = ap.parse_args()
     r = random.Random(a.seed)
     out = Path(a.out)
     (out / "scans").mkdir(parents=True, exist_ok=True)
-    engine = RapidOCR()
+    if a.engine == "rapidocr":
+        from rapidocr_onnxruntime import RapidOCR  # only needed for this engine
+
+        rapid = RapidOCR()
+        read = lambda img: ocr_text(rapid, img)
+    else:
+        read = lambda img: windows_ocr(img, out / "scans" / "_current.jpg")
     rows, t0 = [], time.time()
     for i in range(a.people):
         p = make_person(r, i)
@@ -115,7 +136,7 @@ def main():
                 img = scan(r, draw(t, font, size))
                 img.save(out / "scans" / f"{doc['id']}-{name}.jpg", quality=80)
                 rows.append({"id": doc["id"], "doc_type": doc["doc_type"], "variant": name,
-                             "font": font, "text": ocr_text(engine, img), "fields": g, "edit": edit})
+                             "font": font, "ocr": a.engine, "text": read(img), "fields": g, "edit": edit})
         print(f"person {i + 1}/{a.people}  images={len(rows)}  {time.time() - t0:.0f}s", flush=True)
     with open(out / "ocr.jsonl", "w", encoding="utf-8") as fh:
         for row in rows:

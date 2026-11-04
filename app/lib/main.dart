@@ -9,6 +9,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'data/pin_lock.dart';
 import 'data/sync_service.dart';
 import 'data/vault.dart';
+import 'data/vault_cipher.dart';
 import 'router.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
@@ -50,6 +51,7 @@ Future<void> _openVault() async {
     final dir = await getApplicationSupportDirectory();
     final store = await SqliteVaultStore.open(
       SqliteVaultStore.pathIn(dir.path),
+      cipher: await VaultCipher.loadOrCreate(SecurePinStore()),
     );
     await Vault.attach(store);
   } catch (e) {

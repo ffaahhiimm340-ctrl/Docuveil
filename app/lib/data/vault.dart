@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import 'vault_cipher.dart';
+
 /// A document the vault knows about, plus where its copy lives.
 class VaultDoc {
   const VaultDoc(this.doc, this.location, {this.fileName});
@@ -34,74 +36,119 @@ class MemoryVaultStore implements VaultStore {
   Future<void> put(VaultDoc d) async => _docs[d.doc.id] = d;
 }
 
-/// SQLite-backed store. NOT encrypted yet: SQLCipher and a keystore-held key
-/// are still to do (the research plan calls for encrypted storage).
+/// SQLite-backed store. Every record is encrypted with [VaultCipher]; the
+/// database holds only keyed row names and sealed records.
 class SqliteVaultStore implements VaultStore {
-  SqliteVaultStore._(this._db);
+  SqliteVaultStore._(this._db, this._cipher);
 
   final Database _db;
+  final VaultCipher _cipher;
 
   /// [factory] lets tests pass the FFI factory; [path] may be
-  /// `inMemoryDatabasePath`.
+  /// `inMemoryDatabasePath`. A database from an older version has its plain
+  /// rows encrypted and the old data removed from the file.
   static Future<SqliteVaultStore> open(
     String path, {
+    required VaultCipher cipher,
     DatabaseFactory? factory,
   }) async {
     final f = factory ?? databaseFactory;
+    var migrated = false;
     final db = await f.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
+        onCreate: (db, _) => _createSealed(db, 'docs'),
         onUpgrade: (db, from, _) async {
-          if (from < 2) {
-            await db.execute('ALTER TABLE docs ADD COLUMN file_name TEXT');
+          final hasFileName = from >= 2;
+          await _createSealed(db, 'docs_sealed');
+          for (final r in await db.query('docs')) {
+            await _insert(
+              db,
+              'docs_sealed',
+              cipher,
+              id: r['id'] as String,
+              record: {
+                'id': r['id'],
+                'doc_type': r['doc_type'],
+                'location': r['location'],
+                'fields': r['fields'],
+                'text': r['text'],
+                'file_name': hasFileName ? r['file_name'] : null,
+              },
+            );
           }
+          await db.execute('DROP TABLE docs');
+          await db.execute('ALTER TABLE docs_sealed RENAME TO docs');
+          migrated = true;
         },
-        onCreate: (db, _) => db.execute('''
-          CREATE TABLE docs (
-            id TEXT PRIMARY KEY,
-            doc_type TEXT NOT NULL,
-            location TEXT NOT NULL,
-            fields TEXT NOT NULL,
-            text TEXT NOT NULL,
-            file_name TEXT
-          )'''),
       ),
     );
-    return SqliteVaultStore._(db);
+    // Removes the old plain text from the file; not allowed in a transaction.
+    if (migrated) await db.execute('VACUUM');
+    return SqliteVaultStore._(db, cipher);
+  }
+
+  static Future<void> _createSealed(DatabaseExecutor db, String table) =>
+      db.execute('CREATE TABLE $table (row TEXT PRIMARY KEY, sealed TEXT NOT NULL)');
+
+  static Future<void> _insert(
+    DatabaseExecutor db,
+    String table,
+    VaultCipher cipher, {
+    required String id,
+    required Map<String, Object?> record,
+  }) async {
+    final row = cipher.rowName(id);
+    await db.insert(table, {
+      'row': row,
+      'sealed': await cipher.seal(jsonEncode(record), row),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   static String pathIn(String dir) => p.join(dir, 'vault.db');
 
   @override
   Future<List<VaultDoc>> all() async {
-    final rows = await _db.query('docs', orderBy: 'id');
-    return [
-      for (final r in rows)
+    final out = <VaultDoc>[];
+    for (final r in await _db.query('docs')) {
+      final record =
+          jsonDecode(await _cipher.open(r['sealed'] as String, r['row'] as String))
+              as Map<String, dynamic>;
+      out.add(
         VaultDoc(
           ExtractedDoc(
-            id: r['id'] as String,
-            type: DocType.values.byName(r['doc_type'] as String),
+            id: record['id'] as String,
+            type: DocType.values.byName(record['doc_type'] as String),
             fields: Map<String, String>.from(
-              jsonDecode(r['fields'] as String) as Map,
+              jsonDecode(record['fields'] as String) as Map,
             ),
-            text: r['text'] as String,
+            text: record['text'] as String,
           ),
-          r['location'] as String,
-          fileName: r['file_name'] as String?,
+          record['location'] as String,
+          fileName: record['file_name'] as String?,
         ),
-    ];
+      );
+    }
+    out.sort((a, b) => a.doc.id.compareTo(b.doc.id));
+    return out;
   }
 
   @override
-  Future<void> put(VaultDoc d) => _db.insert('docs', {
-    'id': d.doc.id,
-    'doc_type': d.doc.type.name,
-    'location': d.location,
-    'fields': jsonEncode(d.doc.fields),
-    'text': d.doc.text,
-    'file_name': d.fileName,
-  }, conflictAlgorithm: ConflictAlgorithm.replace);
+  Future<void> put(VaultDoc d) => _insert(
+    _db,
+    'docs',
+    _cipher,
+    id: d.doc.id,
+    record: {
+      'id': d.doc.id,
+      'doc_type': d.doc.type.name,
+      'location': d.location,
+      'fields': jsonEncode(d.doc.fields),
+      'text': d.doc.text,
+      'file_name': d.fileName,
+    },
+  );
 
   Future<void> close() => _db.close();
 }
@@ -127,8 +174,8 @@ class Vault {
 
   /// Load from [store]; if it is empty, fill it with the demo papers.
   static Future<void> attach(VaultStore store) async {
-    _store = store;
     var stored = await store.all();
+    _store = store;
     if (stored.isEmpty) {
       for (final d in demoDocs()) {
         await store.put(d);
