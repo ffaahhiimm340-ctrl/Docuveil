@@ -10,17 +10,6 @@ import 'ocr_service.dart';
 import 'safety_center.dart';
 import 'vault.dart';
 
-/// The fields a paper of each type should have; anything the extractor did
-/// not find is shown empty for the owner to type.
-const expectedFields = {
-  DocType.aadhaar: ['name', 'dob', 'gender', 'father_name', 'id_number'],
-  DocType.pan: ['name', 'dob', 'father_name', 'id_number'],
-  DocType.marksheet: ['name', 'dob', 'seat_number', 'semester', 'cgpa'],
-  DocType.insurance: ['name', 'policy_number', 'sum_assured', 'expiry_date', 'nominee'],
-  DocType.certificate: ['name', 'degree', 'year'],
-  DocType.passport: ['name', 'dob', 'gender', 'father_name', 'id_number', 'expiry_date'],
-};
-
 /// A paper read from a file, before the owner confirms it as the original.
 class IntakeDraft {
   IntakeDraft({

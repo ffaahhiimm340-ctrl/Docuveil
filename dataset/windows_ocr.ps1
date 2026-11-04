@@ -21,4 +21,22 @@ $bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.S
 $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
 if ($null -eq $engine) { throw 'No Windows OCR language is installed.' }
 $result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-foreach ($line in $result.Lines) { [Console]::Out.WriteLine($line.Text) }
+# Windows may split a line with wide gaps and return the pieces out of order,
+# so rebuild lines from each word's position, undoing the page's tilt first.
+$a = 0.0
+if ($null -ne $result.TextAngle) { $a = [double]$result.TextAngle * [Math]::PI / 180 }
+$cos = [Math]::Cos($a); $sin = [Math]::Sin($a)
+$words = foreach ($line in $result.Lines) { foreach ($w in $line.Words) {
+  $r = $w.BoundingRect
+  $cx = $r.X + $r.Width / 2; $cy = $r.Y + $r.Height / 2
+  [pscustomobject]@{ T = $w.Text; X = $cx * $cos + $cy * $sin; Y = $cy * $cos - $cx * $sin; H = $r.Height }
+} }
+$group = @(); $sum = 0.0; $tallest = 0.0
+function Flush { if ($group.Count) { [Console]::Out.WriteLine((($group | Sort-Object X | ForEach-Object { $_.T }) -join ' ')) } }
+foreach ($w in ($words | Sort-Object Y)) {
+  if ($group.Count -and [Math]::Abs($w.Y - $sum / $group.Count) -ge 0.6 * [Math]::Max($tallest, $w.H)) {
+    Flush; $group = @(); $sum = 0.0; $tallest = 0.0
+  }
+  $group += $w; $sum += $w.Y; $tallest = [Math]::Max($tallest, $w.H)
+}
+Flush
