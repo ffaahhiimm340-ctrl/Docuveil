@@ -33,9 +33,9 @@ Map<String, String> extractFields(DocType type, String text) {
       put('father_name', x.valueOf(_label(r"father'?s? ?name")));
       put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
     case DocType.marksheet:
-      put('name', x.valueOf(_label(r'(name of the student|student name|name)')));
-      put('seat_number', x.valueOf(_label(r'(seat no\.?|seat number|roll no\.?)')));
-      put('semester', _semester(x.valueOf(_label(r'semester'))));
+      put('name', x.valueOf(_label(r'(name of the student|student name|name)', glued: true)));
+      put('seat_number', x.valueOf(_label(r'(seat no\.?|seat number|roll no\.?)', glued: true)));
+      put('semester', _semester(x.valueOf(_label(r'semester', glued: true))));
       put('dob', x.valueOf(_label(r'date of birth'), pattern: _date));
       put('cgpa', x.valueOf(_label(r'(sgpa\s*/\s*cgpa|cumulative gpa|cgpa)'), pattern: _gpa));
       if (lines.isNotEmpty) put('university', _titleCase(lines.first));
@@ -54,11 +54,11 @@ Map<String, String> extractFields(DocType type, String text) {
       put('expiry_date', x.valueOf(_label(r'date of expiry'), pattern: _date));
       put('father_name', x.valueOf(_label(r'name of father( / legal guardian)?')));
     case DocType.insurance:
-      put('policy_number', x.valueOf(_label(r'policy (no\.?|number)')));
-      put('name', x.valueOf(_label(r'(policyholder name|name of the insured|proposer name)')));
-      put('sum_assured', x.valueOf(_label(r'sum (insured|assured)'), pattern: _amount));
+      put('policy_number', x.valueOf(_label(r'policy (no\.?|number)', glued: true)));
+      put('name', x.valueOf(_label(r'(policyholder name|name of the insured|proposer name)', glued: true)));
+      put('sum_assured', x.valueOf(_label(r'sum (insured|assured)', glued: true), pattern: _amount));
       put('expiry_date', x.valueOf(_label(r'(policy expiry date|valid till|expiry date)'), pattern: _date));
-      put('nominee', x.valueOf(_label(r'nominee')));
+      put('nominee', x.valueOf(_label(r'nominee', glued: true)));
       if (lines.isNotEmpty) put('insurer', lines.first);
     case DocType.certificate:
       put('name', x.valueOf(_label(r'(this is to certify that|name)')));
@@ -91,7 +91,7 @@ final _aadhaarNo = RegExp('$_nd$_d{4} ?$_d{4} ?$_d{4}$_ndAfter');
 final _panNo = RegExp(r'\b[A-Z]{5}[0-9OIlSB]{4}[A-Z]\b');
 final _passportNo = RegExp('[A-Z]$_d{7}$_ndAfter');
 final _sexLine = RegExp(r'^sex\s*[:\-]?\s*([MFX])$', caseSensitive: false);
-final _amount = RegExp(r'((rs\.?|inr|₹)\s*)?[0-9OoIlSB][0-9OoIlSB,]*', caseSensitive: false);
+final _amount = RegExp(r'((rs\.?|inr|₹)\s*)?[0-9OoIlSB][0-9OoIlSB,.]*', caseSensitive: false);
 final _gender = RegExp(r'^(male|female|transgender)$', caseSensitive: false);
 final _relation = RegExp(r'^(s|d|c|w)\s*/\s*o\s*:?\s*([^,]+)', caseSensitive: false);
 
@@ -110,7 +110,11 @@ const _looksLike = {
 
 /// A label at the start of a line, tolerant of OCR confusions: each letter
 /// in [body] also matches its look-alikes ("Semester" matches "Scmester").
-RegExp _label(String body) {
+///
+/// [glued] is for labels whose value may start with a letter right after the
+/// label when OCR drops the space ("RollNoS028527"). Leave it off for labels
+/// that could be the start of a longer word.
+RegExp _label(String body, {bool glued = false}) {
   final out = StringBuffer('^');
   for (var i = 0; i < body.length; i++) {
     final c = body[i];
@@ -121,7 +125,7 @@ RegExp _label(String body) {
       out.write(!escaped && _looksLike.containsKey(c) ? _looksLike[c] : c);
     }
   }
-  out.write('(?![a-z])'); // a digit right after a label is its value
+  if (!glued) out.write('(?![a-z])'); // a digit right after a label is its value
   return RegExp(out.toString(), caseSensitive: false);
 }
 
@@ -145,7 +149,12 @@ String? _clean(String? v, RegExp? pattern) {
   }
   if (identical(pattern, _amount)) {
     final prefix = RegExp(r'^((rs\.?|inr|₹)\s*)', caseSensitive: false).firstMatch(s)?.group(0) ?? '';
-    return prefix + _digits(s.substring(prefix.length));
+    // A "." that separates digit groups is a misread "," ("10,00.000"); only
+    // a final "." with one or two digits after it is a decimal point.
+    final body = _digits(s.substring(prefix.length))
+        .replaceAll(RegExp(r'\.(?=\d{3}|\d{2}[,.])'), ',')
+        .replaceAll(RegExp(r'[,.]$'), '');
+    return prefix + body;
   }
   return s;
 }
@@ -194,7 +203,7 @@ class _Lines {
       if (exclude != null && _labelEnd(exclude, i) != null) continue;
       final rest = lines[i]
           .substring(end)
-          .replaceFirst(RegExp(r'^\s*[:\-]?\s*'), '');
+          .replaceFirst(RegExp(r'^[\s:\-.]*'), '');
       final v = rest.isNotEmpty ? rest : (i + 1 < lines.length ? lines[i + 1] : null);
       final c = _clean(v, pattern);
       if (c != null) return c;

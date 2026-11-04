@@ -67,7 +67,7 @@ String normalizeNumber(String s) {
 /// changing a digit does not swap in a letter, so this does not hide real edits.
 String normalizeIdNumber(String s) => s
     .toUpperCase()
-    .replaceAll(RegExp(r'[\s\-]'), '')
+    .replaceAll(RegExp(r'[^A-Z0-9]'), '')
     .replaceAll('O', '0')
     .replaceAll('I', '1')
     .replaceAll('L', '1')
