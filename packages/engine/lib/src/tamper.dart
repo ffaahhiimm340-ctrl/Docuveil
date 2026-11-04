@@ -76,9 +76,15 @@ class DocSnapshot {
 }
 
 /// Dice coefficient over word multisets of the normalised texts.
+/// Dice coefficient over character trigrams of the normalised texts, with
+/// spaces removed so OCR spacing differences do not count as changes.
 double textSimilarity(String a, String b) {
-  final ta = normalizeText(a).split(' ').where((w) => w.isNotEmpty).toList();
-  final tb = normalizeText(b).split(' ').where((w) => w.isNotEmpty).toList();
+  List<String> grams(String s) {
+    final t = normalizeText(s).replaceAll(' ', '');
+    return [for (var i = 0; i + 3 <= t.length; i++) t.substring(i, i + 3)];
+  }
+
+  final ta = grams(a), tb = grams(b);
   if (ta.isEmpty && tb.isEmpty) return 1;
   if (ta.isEmpty || tb.isEmpty) return 0;
   final counts = <String, int>{};
@@ -150,22 +156,43 @@ ChangeReport compareVersions(
   // check is only for edits to the rest of the text.
   // Matched on normalised words, so spacing and case do not stop a value
   // from being found.
+  // Spaces are dropped on both sides, so OCR spacing cannot hide a value.
   String untracked(String text, Map<String, String> f) {
-    var t = ' ${normalizeText(text)} ';
-    for (final v in f.values) {
-      final n = normalizeText(v);
-      if (n.isNotEmpty) t = t.replaceAll(' $n ', '  ');
+    var t = normalizeText(text).replaceAll(' ', '');
+    final values = [
+      for (final v in f.values) normalizeText(v).replaceAll(' ', ''),
+    ]..sort((x, y) => y.length.compareTo(x.length)); // longest first
+    for (final n in values.where((n) => n.length >= 2)) {
+      t = t.replaceAll(n, ' ');
     }
     return t;
   }
 
-  final sim = textSimilarity(
-    untracked(baseline.doc.text, a),
-    untracked(current.doc.text, b),
-  );
+  final restA = untracked(baseline.doc.text, a);
+  final restB = untracked(current.doc.text, b);
+  final sim = textSimilarity(restA, restB);
+  // A number outside the tracked fields that differs is never "harmless":
+  // it may be a field the extractor could not read, edited. Letters OCR
+  // prints for digits are folded first so a re-scan does not trip this.
+  // Folding is applied to every such letter on both sides, so it only
+  // cancels out swaps between a letter and its look-alike digit.
+  String numbers(String s) => s
+      .replaceAll('o', '0')
+      .replaceAll(RegExp('[il]'), '1')
+      .replaceAll('s', '5')
+      .replaceAll('b', '8')
+      .replaceAll('z', '2')
+      .replaceAll('g', '6')
+      .replaceAll(RegExp('[^0-9]'), '');
+  final numbersDiffer = numbers(restA) != numbers(restB);
   return ChangeReport(
-    verdict: sim >= harmlessTextThreshold ? Verdict.harmless : Verdict.review,
-    harmlessNotes: notes,
+    verdict: sim >= harmlessTextThreshold && !numbersDiffer
+        ? Verdict.harmless
+        : Verdict.review,
+    harmlessNotes: [
+      ...notes,
+      if (numbersDiffer) 'a number elsewhere on the page differs',
+    ],
     textSimilarity: sim,
   );
 }
