@@ -8,5 +8,6 @@ export 'src/models.dart';
 export 'src/naming.dart';
 export 'src/normalize.dart';
 export 'src/pairing.dart';
+export 'src/safety.dart';
 export 'src/sync.dart';
 export 'src/tamper.dart';

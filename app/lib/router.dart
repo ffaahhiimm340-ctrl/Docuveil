@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import 'data/pin_lock.dart';
 import 'screens/add_flow.dart';
 import 'screens/alerts_screen.dart';
 import 'screens/audit_screen.dart';
@@ -21,7 +22,11 @@ import 'widgets/shell.dart';
 
 /// Every page in the design maps to one route here.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/welcome',
+  initialLocation: PinLock.isSet ? '/unlock' : '/welcome',
+  redirect: (_, state) =>
+      PinLock.isSet && !PinLock.unlocked && state.uri.path != '/unlock'
+      ? '/unlock'
+      : null,
   routes: [
     // Before the vault is open: no navigation bars.
     GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),

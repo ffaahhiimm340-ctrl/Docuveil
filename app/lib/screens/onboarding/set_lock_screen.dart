@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/pin_lock.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text.dart';
-import '../../widgets/cards.dart';
-import '../../widgets/chips.dart';
 import 'pin_pad.dart';
 
 /// 02 Set up lock: choose a 6-digit PIN and name this device.
@@ -16,7 +15,30 @@ class SetLockScreen extends StatefulWidget {
 }
 
 class _SetLockScreenState extends State<SetLockScreen> {
-  bool _fingerprint = true;
+  String? _first;
+  int _round = 0; // changing the pad's key clears it
+  String? _error;
+
+  Future<void> _entered(String pin) async {
+    if (_first == null) {
+      setState(() {
+        _first = pin;
+        _error = null;
+        _round++;
+      });
+      return;
+    }
+    if (pin != _first) {
+      setState(() {
+        _first = null;
+        _error = 'Those PINs did not match. Choose your PIN again.';
+        _round++;
+      });
+      return;
+    }
+    await PinLock.setPin(pin);
+    if (mounted) context.go('/');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,32 +84,17 @@ class _SetLockScreenState extends State<SetLockScreen> {
                   style: AppText.t3.copyWith(fontWeight: FontWeight.w400),
                 ),
                 const SizedBox(height: 18),
-                PinPad(onComplete: (_) => context.go('/')),
-                const SizedBox(height: 6),
-                AppCard(
-                  child: Row(
-                    children: [
-                      const IconTile(Icons.fingerprint_rounded),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Also use fingerprint', style: AppText.t3),
-                            Text(
-                              'Open faster next time.',
-                              style: AppText.small,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: _fingerprint,
-                        onChanged: (v) => setState(() => _fingerprint = v),
-                      ),
-                    ],
-                  ),
+                Text(
+                  _first == null ? 'Choose a PIN' : 'Enter the same PIN again',
+                  style: AppText.bodyBold,
                 ),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: AppText.smallBold.copyWith(color: AppColors.bad),
+                  ),
+                const SizedBox(height: 8),
+                PinPad(key: ValueKey(_round), onComplete: _entered),
               ],
             ),
           ),

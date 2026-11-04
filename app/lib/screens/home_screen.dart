@@ -258,7 +258,11 @@ class _WhereCard extends StatelessWidget {
               TextSpan(
                 style: AppText.small,
                 children: [
-                  TextSpan(text: '${single.length} paper has only one copy: '),
+                  TextSpan(
+                    text: single.length == 1
+                        ? '1 paper has only one copy: '
+                        : '${single.length} papers have only one copy, like ',
+                  ),
                   TextSpan(
                     text: single.first.shortTitle,
                     style: AppText.smallBold.copyWith(color: AppColors.ink),

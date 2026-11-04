@@ -42,9 +42,9 @@ class _RenewalsScreenState extends State<RenewalsScreen> {
       backTo: '/',
       bottom: [AppButton.primary('Add my own date', onPressed: () {})],
       children: [
-        for (final d in SampleData.dates)
+        for (final (i, d) in SampleData.dates.indexed)
           AppCard(
-            borderColor: d == SampleData.dates.first
+            borderColor: i == 0
                 ? AppColors.warnBorder
                 : null,
             child: Row(

@@ -62,12 +62,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
               onTap: () => setState(() => _filter = 'all'),
             ),
             OptionPill(
-              'Urgent 1',
+              'Urgent ${all.where((a) => a.group == 'urgent').length}',
               selected: _filter == 'urgent',
               onTap: () => setState(() => _filter = 'urgent'),
             ),
             OptionPill(
-              'Reminders 2',
+              'Reminders ${all.where((a) => a.group == 'soon').length}',
               selected: _filter == 'soon',
               onTap: () => setState(() => _filter = 'soon'),
             ),

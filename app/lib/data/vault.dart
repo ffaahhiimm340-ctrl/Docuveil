@@ -7,10 +7,16 @@ import 'package:sqflite/sqflite.dart';
 
 /// A document the vault knows about, plus where its copy lives.
 class VaultDoc {
-  const VaultDoc(this.doc, this.location);
+  const VaultDoc(this.doc, this.location, {this.fileName});
 
   final ExtractedDoc doc;
   final String location;
+
+  /// Name of the file it was read from, when the owner added it.
+  final String? fileName;
+
+  /// The synthetic sample papers, as opposed to ones the owner added.
+  bool get isDemo => doc.id.startsWith('demo-');
 }
 
 abstract class VaultStore {
@@ -45,14 +51,20 @@ class SqliteVaultStore implements VaultStore {
     final db = await f.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
+        onUpgrade: (db, from, _) async {
+          if (from < 2) {
+            await db.execute('ALTER TABLE docs ADD COLUMN file_name TEXT');
+          }
+        },
         onCreate: (db, _) => db.execute('''
           CREATE TABLE docs (
             id TEXT PRIMARY KEY,
             doc_type TEXT NOT NULL,
             location TEXT NOT NULL,
             fields TEXT NOT NULL,
-            text TEXT NOT NULL
+            text TEXT NOT NULL,
+            file_name TEXT
           )'''),
       ),
     );
@@ -76,6 +88,7 @@ class SqliteVaultStore implements VaultStore {
             text: r['text'] as String,
           ),
           r['location'] as String,
+          fileName: r['file_name'] as String?,
         ),
     ];
   }
@@ -87,6 +100,7 @@ class SqliteVaultStore implements VaultStore {
     'location': d.location,
     'fields': jsonEncode(d.doc.fields),
     'text': d.doc.text,
+    'file_name': d.fileName,
   }, conflictAlgorithm: ConflictAlgorithm.replace);
 
   Future<void> close() => _db.close();
@@ -99,8 +113,21 @@ class Vault {
 
   static final ValueNotifier<List<VaultDoc>> docs = ValueNotifier(demoDocs());
 
+  static VaultStore? _store;
+
+  /// Save a paper (to the attached store when there is one) and show it.
+  static Future<void> add(VaultDoc d) async {
+    await _store?.put(d);
+    docs.value = [
+      for (final x in docs.value)
+        if (x.doc.id != d.doc.id) x,
+      d,
+    ];
+  }
+
   /// Load from [store]; if it is empty, fill it with the demo papers.
   static Future<void> attach(VaultStore store) async {
+    _store = store;
     var stored = await store.all();
     if (stored.isEmpty) {
       for (final d in demoDocs()) {

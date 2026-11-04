@@ -62,8 +62,14 @@ Map<String, String> extractFields(DocType type, String text) {
       if (lines.isNotEmpty) put('insurer', lines.first);
     case DocType.certificate:
       put('name', x.valueOf(_label(r'(this is to certify that|name)')));
-      put('degree', x.valueOf(_label(r'degree')));
-      put('year', x.valueOf(_label(r'year'), pattern: RegExp(r'\b(19|20)\d\d\b')));
+      put('degree', x.valueOf(_label(r'(has been awarded the degree of|degree)'), exclude: _label(r'degree certificate')));
+      put(
+        'year',
+        x.valueOf(
+          _label(r'(in the year|year)'),
+          pattern: RegExp('(?<![0-9])[0-9]{4}(?![0-9])'),
+        ),
+      );
   }
   return out;
 }
