@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'data/vault.dart';
@@ -12,6 +13,8 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Needed because Add opens PDFs directly, without a pdfrx viewer widget.
+  pdfrxFlutterInitialize();
   runApp(const DocuveilApp());
   unawaited(_openVault());
 }
